@@ -190,12 +190,12 @@ getElement("csvPaste").value = [
   "2026-06-27,980,日用品,日用品,コンビニ",
   "2026-06-26,1350,食費,家飲み,ビールなど"
 ].join("\n");
-getElement("csvSource").value = "chatgpt";
+getElement("csvSource").value = "receipt";
 await getElement("previewCsvButton").dispatch("click");
 assert.match(getElement("csvPreviewSummary").textContent, /2件を選択/, "CSVプレビュー");
 await getElement("importCsvButton").dispatch("click");
 assert.equal(readState().expenses.length, 3, "CSV取り込み");
-assert.equal(readState().expenses.filter(item => item.source === "chatgpt").length, 2, "ChatGPT取り込みsource");
+assert.equal(readState().expenses.filter(item => item.source === "receipt").length, 2, "選択したデータ元を保存");
 assert.equal(getElement("drinkMonthRemaining").textContent, "¥5,650", "家飲み月残り");
 assert.equal(getElement("drinkWeekRemaining").textContent, "¥283", "家飲み週目安と残り");
 

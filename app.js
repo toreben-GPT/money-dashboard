@@ -2,7 +2,7 @@
   "use strict";
 
   const STORAGE_KEY = "mainichiKakeibo_v1";
-  const APP_VERSION = 1.1;
+  const APP_VERSION = 1.2;
   const DONUT_COLORS = ["#207a52", "#e5a72f", "#4b79b9", "#df7650", "#7d65b3", "#43a5a1", "#b76386", "#7e9251"];
 
   const DEFAULT_CATEGORIES = [
@@ -1009,8 +1009,8 @@
             ${badge}
           </div>
           <div class="csv-edit-grid">
-            <label>日付<input type="date" data-csv-field="date" value="${escapeAttr(row.date)}"></label>
-            <label>金額<input type="number" inputmode="numeric" min="1" data-csv-field="amount" value="${Number.isFinite(row.amount) ? row.amount : ""}"></label>
+            <label class="csv-date-field">日付<input type="date" data-csv-field="date" value="${escapeAttr(row.date)}"></label>
+            <label class="csv-amount-field">金額<input type="number" inputmode="numeric" min="1" data-csv-field="amount" value="${Number.isFinite(row.amount) ? row.amount : ""}"></label>
             <label>大カテゴリ<select data-csv-field="majorCategory">
               <option value="">選択</option>
               ${state.categories.map(item => `<option value="${escapeAttr(item.name)}" ${item.name === row.majorCategory ? "selected" : ""}>${escapeHtml(item.name)}</option>`).join("")}
