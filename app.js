@@ -2,23 +2,24 @@
   "use strict";
 
   const STORAGE_KEY = "mainichiKakeibo_v1";
-  const APP_VERSION = 1;
+  const APP_VERSION = 1.1;
   const DONUT_COLORS = ["#207a52", "#e5a72f", "#4b79b9", "#df7650", "#7d65b3", "#43a5a1", "#b76386", "#7e9251"];
 
   const DEFAULT_CATEGORIES = [
-    { id: "cat-transport", name: "交通費", group: "固定費", budget: 121300, subCategories: ["交通費"] },
-    { id: "cat-payment", name: "支払い", group: "固定費", budget: 96000, subCategories: ["支払い"] },
-    { id: "cat-communication", name: "通信費", group: "固定費", budget: 15000, subCategories: ["携帯電話", "その他通信費"] },
-    { id: "cat-subscription", name: "サブスク", group: "固定費", budget: 7000, subCategories: ["サブスク"] },
     { id: "cat-food", name: "食費", group: "生活費", budget: 35000, subCategories: ["食費", "仕事中食費", "家飲み"] },
     { id: "cat-social", name: "交際費", group: "生活費", budget: 50000, subCategories: ["交際費", "デート代", "プレゼント代"] },
     { id: "cat-daily", name: "日用品", group: "生活費", budget: 18000, subCategories: ["日用品", "タバコ"] },
     { id: "cat-beauty", name: "衣服・美容", group: "生活費", budget: 8000, subCategories: ["衣服", "美容院・理髪"] },
-    { id: "cat-utilities", name: "水道・光熱費", group: "生活費", budget: 12000, subCategories: ["電気代", "ガス代", "水道代"] },
+    { id: "cat-hobby", name: "趣味・娯楽", group: "生活費", budget: 0, subCategories: ["趣味・娯楽", "本"] },
     { id: "cat-health", name: "健康・医療", group: "生活費", budget: 8000, subCategories: ["医療費", "フィットネス"] },
     { id: "cat-misc", name: "雑費", group: "生活費", budget: 12000, subCategories: ["雑費"] },
-    { id: "cat-hobby", name: "趣味・娯楽", group: "生活費", budget: 0, subCategories: ["趣味・娯楽", "本"] }
+    { id: "cat-utilities", name: "水道・光熱費", group: "生活費", budget: 12000, subCategories: ["電気代", "ガス代", "水道代"] },
+    { id: "cat-transport", name: "交通費", group: "固定費", budget: 121300, subCategories: ["交通費"] },
+    { id: "cat-payment", name: "支払い", group: "固定費", budget: 96000, subCategories: ["支払い"] },
+    { id: "cat-communication", name: "通信費", group: "固定費", budget: 15000, subCategories: ["携帯電話", "その他通信費"] },
+    { id: "cat-subscription", name: "サブスク", group: "固定費", budget: 7000, subCategories: ["サブスク"] }
   ];
+  const CATEGORY_INPUT_ORDER = DEFAULT_CATEGORIES.map(category => category.name);
 
   let state = loadState();
   let lastSavedId = null;
@@ -60,6 +61,7 @@
     expenseForm: $("#expenseForm"),
     expenseId: $("#expenseId"),
     expenseDate: $("#expenseDate"),
+    expenseDateDisplay: $("#expenseDateDisplay"),
     expenseAmount: $("#expenseAmount"),
     expenseMajor: $("#expenseMajor"),
     expenseSub: $("#expenseSub"),
@@ -68,6 +70,7 @@
     saveExpenseButton: $("#saveExpenseButton"),
     cancelEditButton: $("#cancelEditButton"),
     filterMonth: $("#filterMonth"),
+    filterMonthDisplay: $("#filterMonthDisplay"),
     filterMajor: $("#filterMajor"),
     filterSub: $("#filterSub"),
     transactionCount: $("#transactionCount"),
@@ -91,9 +94,10 @@
   initialize();
 
   function initialize() {
-    if (!localStorage.getItem(STORAGE_KEY)) saveState();
+    saveState();
     els.expenseDate.value = todayISO();
     els.filterMonth.value = monthKey(todayISO());
+    updatePickerDisplays();
     bindEvents();
     populateExpenseCategories();
     renderAll();
@@ -149,10 +153,10 @@
             memo: String(expense.memo || ""),
             createdAt: String(expense.createdAt || new Date().toISOString()),
             updatedAt: String(expense.updatedAt || expense.createdAt || new Date().toISOString()),
-            source: ["manual", "csv", "rakuten", "receipt"].includes(expense.source) ? expense.source : "manual"
+            source: ["manual", "chatgpt", "csv", "rakuten", "receipt"].includes(expense.source) ? expense.source : "manual"
           }))
         : [],
-      categories: categories.length ? categories : defaults.categories,
+      categories: orderCategories(categories.length ? categories : defaults.categories),
       budgets: {
         living: nonNegativeNumber(raw.budgets?.living ?? defaults.budgets.living),
         homeDrinking: nonNegativeNumber(raw.budgets?.homeDrinking ?? defaults.budgets.homeDrinking),
@@ -205,11 +209,16 @@
     });
 
     els.expenseMajor.addEventListener("change", () => populateSubSelect(els.expenseMajor, els.expenseSub));
+    els.expenseDate.addEventListener("change", updatePickerDisplays);
     els.expenseForm.addEventListener("submit", handleExpenseSubmit);
     els.cancelEditButton.addEventListener("click", () => resetExpenseForm());
     els.quickInputList.addEventListener("click", handleQuickInputClick);
+    $("#openImportButton").addEventListener("click", () => openModal("importModal"));
 
-    els.filterMonth.addEventListener("change", renderTransactions);
+    els.filterMonth.addEventListener("change", () => {
+      updatePickerDisplays();
+      renderTransactions();
+    });
     els.filterMajor.addEventListener("change", () => {
       populateFilterSubs();
       renderTransactions();
@@ -373,7 +382,7 @@
 
   function renderCategoryProgress(monthExpenses) {
     const blocks = [];
-    ["固定費", "生活費"].forEach(group => {
+    ["生活費", "固定費"].forEach(group => {
       blocks.push(`<p class="progress-group-title">${group}</p>`);
       state.categories.filter(category => category.group === group).forEach(category => {
         const spent = sum(monthExpenses.filter(expense => expense.majorCategory === category.name).map(expense => expense.amount));
@@ -528,6 +537,7 @@
     els.expenseForm.reset();
     els.expenseId.value = "";
     els.expenseDate.value = keepDate;
+    updatePickerDisplays();
     els.expenseFormTitle.textContent = "支出を入力";
     els.saveExpenseButton.textContent = "支出を登録";
     els.cancelEditButton.classList.add("is-hidden");
@@ -539,6 +549,7 @@
     if (!expense) return;
     els.expenseId.value = expense.id;
     els.expenseDate.value = expense.date;
+    updatePickerDisplays();
     els.expenseAmount.value = expense.amount;
     populateExpenseCategories(expense.majorCategory, expense.subCategory);
     els.expenseMemo.value = expense.memo;
@@ -744,6 +755,7 @@
         subCategories: [name]
       });
     }
+    state.categories = orderCategories(state.categories);
     saveState();
     closeModal("categoryModal");
     renderAll();
@@ -943,6 +955,7 @@
     }
     recomputePreviewFlags();
     renderCsvPreview();
+    closeModal("importModal");
     openModal("csvPreviewModal");
   }
 
@@ -1102,6 +1115,7 @@
     els.filterSub.value = "";
     renderAll();
     els.filterMonth.value = monthKey(selected[0].date);
+    updatePickerDisplays();
     renderTransactions();
     navigate("transactions");
     showToast(`${selected.length}件を取り込みました`);
@@ -1155,6 +1169,7 @@
     saveState();
     resetExpenseForm();
     els.filterMonth.value = monthKey(todayISO());
+    updatePickerDisplays();
     renderAll();
     navigate("home");
     showToast("バックアップを復元しました");
@@ -1168,6 +1183,7 @@
     saveState();
     resetExpenseForm();
     els.filterMonth.value = monthKey(todayISO());
+    updatePickerDisplays();
     renderAll();
     navigate("home");
     showToast("全データを削除し、初期状態に戻しました");
@@ -1302,7 +1318,40 @@
   }
 
   function sourceLabel(source) {
-    return { manual: "手入力", csv: "CSV", rakuten: "楽天カード", receipt: "レシート" }[source] || source;
+    return { manual: "手入力", chatgpt: "ChatGPT", csv: "CSV", rakuten: "楽天カード", receipt: "レシート" }[source] || source;
+  }
+
+  function orderCategories(categories) {
+    return categories
+      .map((category, index) => ({ category, index }))
+      .sort((left, right) => {
+        const leftRank = CATEGORY_INPUT_ORDER.indexOf(left.category.name);
+        const rightRank = CATEGORY_INPUT_ORDER.indexOf(right.category.name);
+        const leftKnown = leftRank >= 0;
+        const rightKnown = rightRank >= 0;
+        if (leftKnown && rightKnown) return leftRank - rightRank;
+        if (leftKnown !== rightKnown) {
+          const known = leftKnown ? left : right;
+          const custom = leftKnown ? right : left;
+          const customBeforeFixed = custom.category.group === "生活費" && known.category.group === "固定費";
+          return (leftKnown === customBeforeFixed) ? 1 : -1;
+        }
+        if (left.category.group !== right.category.group) return left.category.group === "生活費" ? -1 : 1;
+        return left.index - right.index;
+      })
+      .map(item => item.category);
+  }
+
+  function updatePickerDisplays() {
+    if (els.expenseDateDisplay) {
+      els.expenseDateDisplay.textContent = validDateString(els.expenseDate.value)
+        ? formatLongDate(els.expenseDate.value)
+        : "日付を選択";
+    }
+    if (els.filterMonthDisplay) {
+      const match = /^(\d{4})-(\d{2})$/.exec(els.filterMonth.value);
+      els.filterMonthDisplay.textContent = match ? `${match[1]}年${Number(match[2])}月` : "月を選択";
+    }
   }
 
   function csvEscape(value) {

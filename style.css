@@ -645,6 +645,53 @@ textarea {
   transition: border-color 150ms, box-shadow 150ms;
 }
 
+.native-picker {
+  position: relative;
+  display: flex;
+  width: 100%;
+  min-height: 52px;
+  padding: 0 14px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  overflow: hidden;
+  border: 1px solid #ced8d1;
+  border-radius: 12px;
+  background: #fff;
+  transition: border-color 150ms, box-shadow 150ms;
+}
+
+.native-picker:focus-within {
+  border-color: var(--green);
+  box-shadow: 0 0 0 3px rgba(32, 122, 82, 0.12);
+}
+
+.native-picker-value {
+  font-size: 1rem;
+  font-weight: 650;
+  line-height: 1.2;
+  pointer-events: none;
+}
+
+.native-picker-mark {
+  color: var(--green-dark);
+  font-size: 1.2rem;
+  font-weight: 800;
+  pointer-events: none;
+}
+
+.native-picker input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
 textarea {
   min-height: 138px;
   resize: vertical;
@@ -752,6 +799,52 @@ textarea:focus {
 }
 
 .quick-list::-webkit-scrollbar { display: none; }
+
+.import-launch {
+  display: grid;
+  width: 100%;
+  min-height: 70px;
+  margin: 0 0 12px;
+  padding: 12px 14px;
+  grid-template-columns: 42px minmax(0, 1fr) auto;
+  gap: 11px;
+  align-items: center;
+  border: 1px solid #cde2d5;
+  border-radius: 16px;
+  background: linear-gradient(145deg, #f6fbf8 0%, #e9f5ee 100%);
+  color: var(--ink);
+  text-align: left;
+  box-shadow: 0 4px 14px rgba(28, 50, 37, 0.05);
+}
+
+.import-launch-icon {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  place-items: center;
+  border-radius: 13px;
+  background: var(--green);
+  color: #fff;
+  font-size: 1.3rem;
+}
+
+.import-launch strong,
+.import-launch small {
+  display: block;
+}
+
+.import-launch strong { font-size: 0.84rem; }
+
+.import-launch small {
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 0.7rem;
+}
+
+.import-launch-arrow {
+  color: var(--green-dark);
+  font-size: 1.55rem;
+}
 
 .quick-chip {
   flex: 0 0 auto;
@@ -997,6 +1090,22 @@ textarea:focus {
   color: #9aa29d;
   font-size: 0.7rem;
   text-align: center;
+}
+
+.import-intro {
+  margin-top: 18px;
+  padding: 14px;
+  border: 1px solid #d7e9de;
+  border-radius: 14px;
+  background: var(--green-soft);
+}
+
+.import-intro strong { font-size: 0.84rem; }
+
+.import-intro p {
+  margin: 5px 0 0;
+  color: var(--muted);
+  font-size: 0.74rem;
 }
 
 .modal-backdrop {

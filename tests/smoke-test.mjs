@@ -103,10 +103,15 @@ const key = "mainichiKakeibo_v1";
 const readState = () => JSON.parse(storage.get(key));
 
 assert.equal(readState().categories.length, 12, "初期カテゴリ数");
+assert.deepEqual(readState().categories.slice(0, 3).map(item => item.name), ["食費", "交際費", "日用品"], "よく使うカテゴリを先頭に表示");
+assert.ok(readState().categories.slice(-4).every(item => item.group === "固定費"), "固定費カテゴリを下に表示");
 assert.equal(readState().budgets.living, 150000, "生活費初期予算");
 assert.equal(readState().categories.filter(item => item.group === "固定費").reduce((total, item) => total + item.budget, 0), 239300, "固定費初期予算合計");
 assert.equal(readState().categories.filter(item => item.group === "生活費").reduce((total, item) => total + item.budget, 0) + readState().budgets.tobacco, 150000, "生活費カテゴリ予算とタバコ専用予算の合計");
 assert.equal(getElement("monthTotal").textContent, "¥0", "初期ホーム合計");
+assert.ok(getElement("categoryProgressList").innerHTML.indexOf("生活費") < getElement("categoryProgressList").innerHTML.indexOf("固定費"), "予算進捗は生活費を先に表示");
+assert.match(getElement("expenseDateDisplay").textContent, /^\d{4}年\d{1,2}月\d{1,2}日/, "日付を読みやすく表示");
+assert.match(getElement("filterMonthDisplay").textContent, /^\d{4}年\d{1,2}月$/, "表示月を読みやすく表示");
 
 getElement("expenseDate").value = "2026-06-27";
 getElement("expenseAmount").value = "1100";
@@ -185,12 +190,12 @@ getElement("csvPaste").value = [
   "2026-06-27,980,日用品,日用品,コンビニ",
   "2026-06-26,1350,食費,家飲み,ビールなど"
 ].join("\n");
-getElement("csvSource").value = "receipt";
+getElement("csvSource").value = "chatgpt";
 await getElement("previewCsvButton").dispatch("click");
 assert.match(getElement("csvPreviewSummary").textContent, /2件を選択/, "CSVプレビュー");
 await getElement("importCsvButton").dispatch("click");
 assert.equal(readState().expenses.length, 3, "CSV取り込み");
-assert.equal(readState().expenses.filter(item => item.source === "receipt").length, 2, "CSV source");
+assert.equal(readState().expenses.filter(item => item.source === "chatgpt").length, 2, "ChatGPT取り込みsource");
 assert.equal(getElement("drinkMonthRemaining").textContent, "¥5,650", "家飲み月残り");
 assert.equal(getElement("drinkWeekRemaining").textContent, "¥283", "家飲み週目安と残り");
 
@@ -282,4 +287,4 @@ await getElement("deleteAllButton").dispatch("click");
 assert.equal(readState().expenses.length, 0, "全データ削除");
 assert.equal(readState().budgets.living, 150000, "全削除後は初期予算");
 
-console.log("SMOKE TEST OK: 入力・ホーム更新・連続入力・クイック入力・明細編集削除・絞り込み・CSV入出力・JSON・予算カテゴリ設定・全削除");
+console.log("SMOKE TEST OK: 入力・ホーム更新・連続入力・クイック入力・明細編集削除・絞り込み・ChatGPT/CSV入出力・JSON・予算カテゴリ設定・全削除");
