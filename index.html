@@ -128,6 +128,15 @@
           <p class="empty-state compact-empty" id="quickInputEmpty">まだありません。支出登録後に追加できます。</p>
         </article>
 
+        <button class="import-launch" id="openImportButton" type="button">
+          <span class="import-launch-icon" aria-hidden="true">⇩</span>
+          <span>
+            <strong>ChatGPTの読み取り結果を取り込む</strong>
+            <small>コピーした明細をまとめて登録</small>
+          </span>
+          <span class="import-launch-arrow" aria-hidden="true">›</span>
+        </button>
+
         <form class="entry-form section-card" id="expenseForm">
           <input type="hidden" id="expenseId">
           <div class="form-heading">
@@ -136,7 +145,11 @@
           </div>
           <label class="field">
             <span>日付</span>
-            <input id="expenseDate" type="date" required>
+            <span class="native-picker">
+              <span class="native-picker-value" id="expenseDateDisplay"></span>
+              <span class="native-picker-mark" aria-hidden="true">⌄</span>
+              <input id="expenseDate" type="date" required aria-label="日付">
+            </span>
           </label>
           <label class="field amount-field">
             <span>金額</span>
@@ -163,7 +176,11 @@
         <article class="filter-card section-card">
           <label class="field">
             <span>表示月</span>
-            <input id="filterMonth" type="month">
+            <span class="native-picker">
+              <span class="native-picker-value" id="filterMonthDisplay"></span>
+              <span class="native-picker-mark" aria-hidden="true">⌄</span>
+              <input id="filterMonth" type="month" aria-label="表示月">
+            </span>
           </label>
           <div class="filter-row">
             <label class="field">
@@ -223,29 +240,6 @@
           <p class="empty-state compact-empty" id="settingsQuickEmpty">登録済みのクイック入力はありません。</p>
         </article>
 
-        <article class="section-card settings-card" id="csvSection">
-          <div class="section-heading">
-            <div>
-              <p class="mini-kicker">貼り付けて確認</p>
-              <h2>CSV取り込み</h2>
-            </div>
-          </div>
-          <label class="field">
-            <span>データ元</span>
-            <select id="csvSource">
-              <option value="csv">CSV</option>
-              <option value="rakuten">楽天カード</option>
-              <option value="receipt">レシート</option>
-            </select>
-          </label>
-          <label class="field">
-            <span>CSVデータ</span>
-            <textarea id="csvPaste" rows="7" spellcheck="false" placeholder="date,amount,majorCategory,subCategory,memo&#10;2026-06-27,1100,食費,仕事中食費,ラーメン"></textarea>
-          </label>
-          <p class="form-help">1行目は見出しあり・なしの両方に対応。登録前に全件を確認できます。</p>
-          <button class="secondary-button full" id="previewCsvButton" type="button">取り込み内容を確認</button>
-        </article>
-
         <article class="section-card settings-card">
           <div class="section-heading">
             <div>
@@ -269,7 +263,7 @@
           <button class="danger-button" id="deleteAllButton" type="button">すべて削除</button>
         </article>
 
-        <p class="version-label">まいにち家計簿 v1.0</p>
+        <p class="version-label">まいにち家計簿 v1.1</p>
       </section>
     </main>
 
@@ -338,6 +332,37 @@
         <label class="field"><span>メモ</span><input id="quickEditMemo" type="text" maxlength="80"></label>
         <button class="primary-button" type="submit">保存</button>
       </form>
+    </div>
+  </div>
+
+  <div class="modal-backdrop is-hidden" id="importModal" role="dialog" aria-modal="true" aria-labelledby="importTitle">
+    <div class="modal-card full-modal import-modal-card">
+      <div class="modal-sticky-head">
+        <div>
+          <p class="mini-kicker">コピーしてまとめて登録</p>
+          <h2 id="importTitle">明細を取り込む</h2>
+        </div>
+        <button class="modal-close static" type="button" data-close-modal="importModal" aria-label="閉じる">×</button>
+      </div>
+      <div class="import-intro">
+        <strong>ChatGPTで読み取った明細を、そのまま貼り付け</strong>
+        <p>ChatGPTには「日付,金額,大カテゴリ,小カテゴリ,メモのCSVで出して」と頼むとスムーズです。</p>
+      </div>
+      <label class="field">
+        <span>データ元</span>
+        <select id="csvSource">
+          <option value="chatgpt">ChatGPT読み取り</option>
+          <option value="csv">その他のCSV</option>
+          <option value="rakuten">楽天カード</option>
+          <option value="receipt">レシート</option>
+        </select>
+      </label>
+      <label class="field">
+        <span>明細データ</span>
+        <textarea id="csvPaste" rows="8" spellcheck="false" placeholder="date,amount,majorCategory,subCategory,memo&#10;2026-06-27,1100,食費,仕事中食費,ラーメン"></textarea>
+      </label>
+      <p class="form-help">見出しはあってもなくてもOKです。登録前に内容を1件ずつ確認できます。</p>
+      <button class="primary-button full" id="previewCsvButton" type="button">取り込み内容を確認</button>
     </div>
   </div>
 
