@@ -1317,6 +1317,7 @@ textarea:focus {
 .csv-edit-grid label {
   display: grid;
   min-width: 0;
+  overflow: hidden;
   gap: 4px;
   color: var(--muted);
   font-size: 0.67rem;
@@ -1337,9 +1338,10 @@ textarea:focus {
 .csv-date-field { grid-column: span 1; }
 .csv-amount-field { grid-column: span 1; }
 
-@media (max-width: 430px) {
-  .csv-edit-grid {
-    grid-template-columns: minmax(0, 1.08fr) minmax(0, 0.92fr);
+@media (max-width: 620px) {
+  .csv-date-field,
+  .csv-amount-field {
+    grid-column: 1 / -1;
   }
 }
 
