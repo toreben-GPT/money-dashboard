@@ -2,7 +2,7 @@
   "use strict";
 
   const STORAGE_KEY = "mainichiKakeibo_v1";
-  const APP_VERSION = 1.2;
+  const APP_VERSION = 2.0;
   const DONUT_COLORS = ["#207a52", "#e5a72f", "#4b79b9", "#df7650", "#7d65b3", "#43a5a1", "#b76386", "#7e9251"];
 
   const DEFAULT_CATEGORIES = [
@@ -26,6 +26,7 @@
   let detailExpenseId = null;
   let csvPreviewRows = [];
   let toastTimer = null;
+  let categoryReturnTarget = null;
 
   const $ = (selector, root = document) => root.querySelector(selector);
   const $$ = (selector, root = document) => Array.from(root.querySelectorAll(selector));
@@ -80,6 +81,9 @@
     livingBudgetInput: $("#livingBudgetInput"),
     drinkBudgetInput: $("#drinkBudgetInput"),
     tobaccoBudgetInput: $("#tobaccoBudgetInput"),
+    livingCategoryBudgetTotal: $("#livingCategoryBudgetTotal"),
+    fixedCategoryBudgetTotal: $("#fixedCategoryBudgetTotal"),
+    allCategoryBudgetTotal: $("#allCategoryBudgetTotal"),
     categoryEditorList: $("#categoryEditorList"),
     settingsQuickList: $("#settingsQuickList"),
     settingsQuickEmpty: $("#settingsQuickEmpty"),
@@ -212,6 +216,7 @@
     els.expenseDate.addEventListener("change", updatePickerDisplays);
     els.expenseForm.addEventListener("submit", handleExpenseSubmit);
     els.cancelEditButton.addEventListener("click", () => resetExpenseForm());
+    $("#quickAddCategoryButton").addEventListener("click", () => openCategoryModal(null, "expense"));
     els.quickInputList.addEventListener("click", handleQuickInputClick);
     $("#openImportButton").addEventListener("click", () => openModal("importModal"));
 
@@ -345,11 +350,13 @@
     const weeklyLivingBudget = Math.round(state.budgets.living / daysInMonth * 7);
     const weekRemaining = weeklyLivingBudget - weekLiving;
     const monthRemaining = state.budgets.living - monthLiving;
-    const daysRemainingWeek = ((7 - normalizeWeekday(today.getDay())) || 7);
     const daysRemainingMonth = lastDay - today.getDate() + 1;
-    const weekPerDay = weekRemaining / daysRemainingWeek;
-    const monthPerDay = monthRemaining / daysRemainingMonth;
-    const todayAvailable = Math.max(0, Math.floor(Math.min(weekPerDay, monthPerDay)));
+    const dailyCategories = state.categories.filter(isDailySpendCategory);
+    const dailyCategoryNames = new Set(dailyCategories.map(category => category.name));
+    const dailyBudget = sum(dailyCategories.map(category => category.budget));
+    const monthDailySpent = sum(monthExpenses.filter(expense => dailyCategoryNames.has(expense.majorCategory)).map(expense => expense.amount));
+    const dailyRemaining = dailyBudget - monthDailySpent;
+    const todayAvailable = Math.max(0, Math.floor(dailyRemaining / daysRemainingMonth));
 
     els.headerMonth.textContent = `${today.getFullYear()}年${today.getMonth() + 1}月`;
     els.monthTotal.textContent = yen(monthTotal);
@@ -357,8 +364,7 @@
     setProgress(els.livingProgress, percent(monthLiving, state.budgets.living));
     els.livingRemainingText.textContent = `残り ${yen(monthRemaining)}`;
     els.todayAvailable.textContent = yen(todayAvailable);
-    const limiting = weekPerDay <= monthPerDay ? "週の残り" : "月の残り";
-    els.todayBasis.textContent = `${limiting}を基準に算出・今日を含む`;
+    els.todayBasis.textContent = `日常費の残り ${yen(dailyRemaining)} ÷ ${daysRemainingMonth}日（今日を含む）`;
     setSignedAmount(els.weekRemaining, weekRemaining);
     els.weekDetail.textContent = `${formatShortDate(weekStart)}〜${formatShortDate(weekEnd)}・目安 ${yen(weeklyLivingBudget)}`;
     setSignedAmount(els.monthRemaining, monthRemaining);
@@ -674,8 +680,17 @@
     els.livingBudgetInput.value = state.budgets.living;
     els.drinkBudgetInput.value = state.budgets.homeDrinking;
     els.tobaccoBudgetInput.value = state.budgets.tobacco;
+    renderCategoryBudgetTotals();
     renderCategoryEditor();
     renderSettingsQuickInputs();
+  }
+
+  function renderCategoryBudgetTotals() {
+    const livingTotal = sum(state.categories.filter(category => category.group === "生活費").map(category => category.budget));
+    const fixedTotal = sum(state.categories.filter(category => category.group === "固定費").map(category => category.budget));
+    els.livingCategoryBudgetTotal.textContent = yen(livingTotal);
+    els.fixedCategoryBudgetTotal.textContent = yen(fixedTotal);
+    els.allCategoryBudgetTotal.textContent = yen(livingTotal + fixedTotal);
   }
 
   function saveBudgets(event) {
@@ -715,7 +730,8 @@
       </article>`).join("");
   }
 
-  function openCategoryModal(category = null) {
+  function openCategoryModal(category = null, returnTarget = null) {
+    categoryReturnTarget = returnTarget;
     $("#categoryModalTitle").textContent = category ? "大カテゴリを編集" : "大カテゴリを追加";
     $("#categoryId").value = category?.id || "";
     $("#categoryName").value = category?.name || "";
@@ -729,6 +745,7 @@
     event.preventDefault();
     const id = $("#categoryId").value;
     const name = $("#categoryName").value.trim();
+    const returnToExpense = !id && categoryReturnTarget === "expense";
     if (!name) return;
     const duplicate = state.categories.some(category => category.name === name && category.id !== id);
     if (duplicate) {
@@ -759,6 +776,12 @@
     saveState();
     closeModal("categoryModal");
     renderAll();
+    if (returnToExpense) {
+      populateExpenseCategories(name, name);
+      navigate("input", false);
+      window.setTimeout(() => els.expenseSub.focus(), 100);
+    }
+    categoryReturnTarget = null;
     showToast("カテゴリを保存しました");
   }
 
@@ -1009,7 +1032,13 @@
             ${badge}
           </div>
           <div class="csv-edit-grid">
-            <label class="csv-date-field">日付<input type="date" data-csv-field="date" value="${escapeAttr(row.date)}"></label>
+            <label class="csv-date-field">日付
+              <span class="native-picker csv-native-picker">
+                <span class="native-picker-value">${validDateString(row.date) ? escapeHtml(formatLongDate(row.date)) : "日付を選択"}</span>
+                <span class="native-picker-mark" aria-hidden="true">⌄</span>
+                <input type="date" data-csv-field="date" value="${escapeAttr(row.date)}" aria-label="取り込み明細${index + 1}件目の日付">
+              </span>
+            </label>
             <label class="csv-amount-field">金額<input type="number" inputmode="numeric" min="1" data-csv-field="amount" value="${Number.isFinite(row.amount) ? row.amount : ""}"></label>
             <label>大カテゴリ<select data-csv-field="majorCategory">
               <option value="">選択</option>
@@ -1239,6 +1268,12 @@
   function percent(value, budget) {
     if (budget === 0) return value > 0 ? 100 : 0;
     return value / budget * 100;
+  }
+
+  function isDailySpendCategory(category) {
+    return category.group === "生活費"
+      && category.id !== "cat-utilities"
+      && category.name !== "水道・光熱費";
   }
 
   function sum(values) {
