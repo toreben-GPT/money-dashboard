@@ -155,10 +155,13 @@
             <span>金額</span>
             <div class="amount-input-wrap"><span>¥</span><input id="expenseAmount" type="number" inputmode="numeric" min="1" step="1" placeholder="0" required></div>
           </label>
-          <label class="field">
-            <span>大カテゴリ</span>
-            <select id="expenseMajor" required></select>
-          </label>
+          <div class="field">
+            <div class="field-label-row">
+              <span>大カテゴリ</span>
+              <button class="inline-add-button" id="quickAddCategoryButton" type="button">＋ カテゴリ追加</button>
+            </div>
+            <select id="expenseMajor" required aria-label="大カテゴリ"></select>
+          </div>
           <label class="field">
             <span>小カテゴリ</span>
             <select id="expenseSub" required></select>
@@ -226,6 +229,11 @@
             </div>
             <button class="small-button" id="addCategoryButton" type="button">＋ 追加</button>
           </div>
+          <div class="budget-total-grid" aria-label="大カテゴリ予算の合計">
+            <div><span>生活費合計</span><strong id="livingCategoryBudgetTotal">¥0</strong></div>
+            <div><span>固定費合計</span><strong id="fixedCategoryBudgetTotal">¥0</strong></div>
+            <div><span>全体合計</span><strong id="allCategoryBudgetTotal">¥0</strong></div>
+          </div>
           <div class="category-editor-list" id="categoryEditorList"></div>
         </article>
 
@@ -263,7 +271,7 @@
           <button class="danger-button" id="deleteAllButton" type="button">すべて削除</button>
         </article>
 
-        <p class="version-label">まいにち家計簿 v1.2</p>
+        <p class="version-label">まいにち家計簿 v2.0</p>
       </section>
     </main>
 

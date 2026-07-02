@@ -1,4 +1,14 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
+
+const NativeDate = Date;
+const FIXED_NOW = NativeDate.parse("2026-06-27T12:00:00+09:00");
+globalThis.Date = class FixedDate extends NativeDate {
+  constructor(...args) {
+    super(...(args.length ? args : [FIXED_NOW]));
+  }
+  static now() { return FIXED_NOW; }
+};
 
 class FakeClassList {
   constructor() { this.values = new Set(); }
@@ -101,14 +111,20 @@ await import("../app.js");
 
 const key = "mainichiKakeibo_v1";
 const readState = () => JSON.parse(storage.get(key));
+const styleText = await readFile(new URL("../style.css", import.meta.url), "utf8");
 
 assert.equal(readState().categories.length, 12, "初期カテゴリ数");
+assert.equal(readState().version, 2, "保存データをv2として正規化");
 assert.deepEqual(readState().categories.slice(0, 3).map(item => item.name), ["食費", "交際費", "日用品"], "よく使うカテゴリを先頭に表示");
 assert.ok(readState().categories.slice(-4).every(item => item.group === "固定費"), "固定費カテゴリを下に表示");
 assert.equal(readState().budgets.living, 150000, "生活費初期予算");
 assert.equal(readState().categories.filter(item => item.group === "固定費").reduce((total, item) => total + item.budget, 0), 239300, "固定費初期予算合計");
 assert.equal(readState().categories.filter(item => item.group === "生活費").reduce((total, item) => total + item.budget, 0) + readState().budgets.tobacco, 150000, "生活費カテゴリ予算とタバコ専用予算の合計");
+assert.equal(getElement("livingCategoryBudgetTotal").textContent, "¥143,000", "生活費の大カテゴリ予算合計");
+assert.equal(getElement("fixedCategoryBudgetTotal").textContent, "¥239,300", "固定費の大カテゴリ予算合計");
+assert.equal(getElement("allCategoryBudgetTotal").textContent, "¥382,300", "全体の大カテゴリ予算合計");
 assert.equal(getElement("monthTotal").textContent, "¥0", "初期ホーム合計");
+assert.equal(getElement("todayAvailable").textContent, "¥32,750", "対象日常費を月末までの日数で割る");
 assert.ok(getElement("categoryProgressList").innerHTML.indexOf("生活費") < getElement("categoryProgressList").innerHTML.indexOf("固定費"), "予算進捗は生活費を先に表示");
 assert.match(getElement("expenseDateDisplay").textContent, /^\d{4}年\d{1,2}月\d{1,2}日/, "日付を読みやすく表示");
 assert.match(getElement("filterMonthDisplay").textContent, /^\d{4}年\d{1,2}月$/, "表示月を読みやすく表示");
@@ -124,7 +140,7 @@ await getElement("expenseForm").dispatch("submit");
 assert.equal(readState().expenses.length, 1, "手入力登録");
 assert.equal(readState().expenses[0].source, "manual", "手入力source");
 assert.equal(getElement("monthTotal").textContent, "¥1,100", "登録後ホーム更新");
-assert.equal(getElement("todayAvailable").textContent, "¥16,950", "週・月の少ない方から今日使える金額を算出");
+assert.equal(getElement("todayAvailable").textContent, "¥32,475", "対象日常費の支出を差し引いて日額を算出");
 
 prompts.push("昼ごはん");
 await getElement("saveQuickButton").dispatch("click");
@@ -193,6 +209,11 @@ getElement("csvPaste").value = [
 getElement("csvSource").value = "receipt";
 await getElement("previewCsvButton").dispatch("click");
 assert.match(getElement("csvPreviewSummary").textContent, /2件を選択/, "CSVプレビュー");
+assert.match(getElement("csvPreviewList").innerHTML, /native-picker csv-native-picker/, "取り込み日付は通常入力と同じiPhone対応部品");
+assert.match(getElement("csvPreviewList").innerHTML, /2026年6月27日/, "取り込み日付を読みやすく表示");
+assert.match(styleText, /\.csv-preview-card\s*\{[^}]*overflow:\s*hidden/s, "取り込みカードの横はみ出しを抑制");
+assert.match(styleText, /\.csv-edit-grid \.csv-native-picker input\s*\{[^}]*opacity:\s*0/s, "iPhoneの日付入力は幅を制御して透明化");
+assert.match(styleText, /@media \(max-width: 620px\)[\s\S]*?\.csv-date-field,[\s\S]*?grid-column:\s*1 \/ -1/, "狭い画面で日付欄を1列表示");
 await getElement("importCsvButton").dispatch("click");
 assert.equal(readState().expenses.length, 3, "CSV取り込み");
 assert.equal(readState().expenses.filter(item => item.source === "receipt").length, 2, "選択したデータ元を保存");
@@ -220,12 +241,21 @@ getElement("tobaccoBudgetInput").value = "7500";
 await getElement("budgetForm").dispatch("submit");
 assert.equal(readState().budgets.living, 160000, "予算変更");
 
-await getElement("addCategoryButton").dispatch("click");
+getElement("expenseDate").value = "2026-06-27";
+getElement("expenseAmount").value = "777";
+getElement("expenseMemo").value = "入力保持テスト";
+await getElement("quickAddCategoryButton").dispatch("click");
 getElement("categoryName").value = "ペット";
 getElement("categoryGroup").value = "生活費";
 getElement("categoryBudget").value = "5000";
 await getElement("categoryForm").dispatch("submit");
 assert.ok(readState().categories.some(item => item.name === "ペット"), "カテゴリ追加");
+assert.equal(getElement("expenseMajor").value, "ペット", "クイック追加後に新カテゴリを自動選択");
+assert.equal(getElement("expenseSub").value, "ペット", "クイック追加後に新しい小カテゴリを自動選択");
+assert.equal(getElement("expenseAmount").value, "777", "カテゴリ追加中も金額を保持");
+assert.equal(getElement("expenseMemo").value, "入力保持テスト", "カテゴリ追加中もメモを保持");
+assert.equal(getElement("livingCategoryBudgetTotal").textContent, "¥148,000", "生活費カテゴリ追加で合計更新");
+assert.equal(getElement("allCategoryBudgetTotal").textContent, "¥387,300", "カテゴリ追加で全体合計更新");
 
 const createdPet = readState().categories.find(item => item.name === "ペット");
 const petEditButton = {
@@ -245,6 +275,9 @@ const editedPet = readState().categories.find(item => item.id === createdPet.id)
 assert.equal(editedPet.name, "ペット用品", "大カテゴリ名変更");
 assert.equal(editedPet.group, "固定費", "カテゴリグループ変更");
 assert.equal(editedPet.budget, 6000, "カテゴリ予算変更");
+assert.equal(getElement("livingCategoryBudgetTotal").textContent, "¥143,000", "生活費から固定費への変更を合計に反映");
+assert.equal(getElement("fixedCategoryBudgetTotal").textContent, "¥245,300", "固定費予算の変更を合計に反映");
+assert.equal(getElement("allCategoryBudgetTotal").textContent, "¥388,300", "予算変更を全体合計に反映");
 
 const foodCategory = readState().categories.find(item => item.name === "食費");
 const makeCategoryButton = (action, subIndex = null) => ({
@@ -277,6 +310,8 @@ const petDeleteButton = {
 };
 await getElement("categoryEditorList").dispatch("click", { target: petDeleteButton });
 assert.ok(!readState().categories.some(item => item.name === "ペット用品"), "大カテゴリ削除");
+assert.equal(getElement("fixedCategoryBudgetTotal").textContent, "¥239,300", "カテゴリ削除を固定費合計に反映");
+assert.equal(getElement("allCategoryBudgetTotal").textContent, "¥382,300", "カテゴリ削除を全体合計に反映");
 
 const backup = { app: "まいにち家計簿", schemaVersion: 1, data: readState() };
 const restoreFile = { text: async () => JSON.stringify(backup) };
@@ -287,4 +322,30 @@ await getElement("deleteAllButton").dispatch("click");
 assert.equal(readState().expenses.length, 0, "全データ削除");
 assert.equal(readState().budgets.living, 150000, "全削除後は初期予算");
 
-console.log("SMOKE TEST OK: 入力・ホーム更新・連続入力・クイック入力・明細編集削除・絞り込み・ChatGPT/CSV入出力・JSON・予算カテゴリ設定・全削除");
+const excludedExpenses = [
+  ["水道・光熱費", "電気代"],
+  ["交通費", "交通費"],
+  ["支払い", "支払い"],
+  ["通信費", "携帯電話"],
+  ["サブスク", "サブスク"]
+];
+for (const [major, sub] of excludedExpenses) {
+  getElement("expenseDate").value = "2026-06-27";
+  getElement("expenseAmount").value = "1000";
+  getElement("expenseMajor").value = major;
+  await getElement("expenseMajor").dispatch("change");
+  getElement("expenseSub").value = sub;
+  await getElement("expenseForm").dispatch("submit");
+  assert.equal(getElement("todayAvailable").textContent, "¥32,750", `${major}は今日使える金額の対象外`);
+  await getElement("continueButton").dispatch("click");
+}
+
+getElement("expenseDate").value = "2026-06-27";
+getElement("expenseAmount").value = "1000";
+getElement("expenseMajor").value = "食費";
+await getElement("expenseMajor").dispatch("change");
+getElement("expenseSub").value = "食費";
+await getElement("expenseForm").dispatch("submit");
+assert.equal(getElement("todayAvailable").textContent, "¥32,500", "対象生活費の支出だけ日額から差し引く");
+
+console.log("SMOKE TEST OK: v2日額計算・予算合計・入力中カテゴリ追加・iPhone日付表示・既存機能");

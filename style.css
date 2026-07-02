@@ -620,10 +620,29 @@ main {
   margin-top: 16px;
 }
 
-.field > span {
+.field > span,
+.field-label-row > span {
   color: #465149;
   font-size: 0.81rem;
   font-weight: 700;
+}
+
+.field-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.inline-add-button {
+  min-height: 32px;
+  padding: 4px 8px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--green-soft);
+  color: var(--green-dark);
+  font-size: 0.72rem;
+  font-weight: 750;
 }
 
 .field small {
@@ -1092,6 +1111,44 @@ textarea:focus {
   text-align: center;
 }
 
+.budget-total-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 15px;
+}
+
+.budget-total-grid > div {
+  min-width: 0;
+  padding: 11px 7px;
+  border: 1px solid #d7e9de;
+  border-radius: 12px;
+  background: var(--green-soft);
+  text-align: center;
+}
+
+.budget-total-grid span,
+.budget-total-grid strong {
+  display: block;
+}
+
+.budget-total-grid span {
+  color: var(--muted);
+  font-size: 0.65rem;
+  font-weight: 700;
+}
+
+.budget-total-grid strong {
+  overflow: hidden;
+  margin-top: 3px;
+  color: var(--green-dark);
+  font-size: clamp(0.78rem, 3.6vw, 1rem);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.025em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .import-intro {
   margin-top: 18px;
   padding: 14px;
@@ -1268,6 +1325,8 @@ textarea:focus {
 }
 
 .csv-preview-card {
+  min-width: 0;
+  overflow: hidden;
   padding: 13px;
   border: 1px solid var(--line);
   border-radius: 15px;
@@ -1333,6 +1392,32 @@ textarea:focus {
   min-height: 42px;
   padding: 8px 9px;
   font-size: 14px;
+}
+
+.csv-edit-grid .csv-native-picker {
+  min-width: 0;
+  min-height: 42px;
+  padding: 0 10px;
+}
+
+.csv-edit-grid .csv-native-picker .native-picker-value {
+  overflow: hidden;
+  min-width: 0;
+  font-size: 0.88rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.csv-edit-grid .csv-native-picker input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  opacity: 0;
 }
 
 .csv-date-field { grid-column: span 1; }
