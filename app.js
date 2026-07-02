@@ -2,7 +2,7 @@
   "use strict";
 
   const STORAGE_KEY = "mainichiKakeibo_v1";
-  const APP_VERSION = 2.0;
+  const APP_VERSION = 2.1;
   const DONUT_COLORS = ["#207a52", "#e5a72f", "#4b79b9", "#df7650", "#7d65b3", "#43a5a1", "#b76386", "#7e9251"];
 
   const DEFAULT_CATEGORIES = [
@@ -1033,11 +1033,7 @@
           </div>
           <div class="csv-edit-grid">
             <label class="csv-date-field">日付
-              <span class="native-picker csv-native-picker">
-                <span class="native-picker-value">${validDateString(row.date) ? escapeHtml(formatLongDate(row.date)) : "日付を選択"}</span>
-                <span class="native-picker-mark" aria-hidden="true">⌄</span>
-                <input type="date" data-csv-field="date" value="${escapeAttr(row.date)}" aria-label="取り込み明細${index + 1}件目の日付">
-              </span>
+              <input class="csv-date-input" type="text" data-csv-field="date" value="${escapeAttr(row.date)}" maxlength="10" placeholder="YYYY-MM-DD" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="取り込み明細${index + 1}件目の日付">
             </label>
             <label class="csv-amount-field">金額<input type="number" inputmode="numeric" min="1" data-csv-field="amount" value="${Number.isFinite(row.amount) ? row.amount : ""}"></label>
             <label>大カテゴリ<select data-csv-field="majorCategory">

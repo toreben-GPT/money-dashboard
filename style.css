@@ -635,6 +635,8 @@ main {
 }
 
 .inline-add-button {
+  position: relative;
+  z-index: 1;
   min-height: 32px;
   padding: 4px 8px;
   border: 0;
@@ -643,6 +645,7 @@ main {
   color: var(--green-dark);
   font-size: 0.72rem;
   font-weight: 750;
+  touch-action: manipulation;
 }
 
 .field small {
@@ -1111,11 +1114,17 @@ textarea:focus {
   text-align: center;
 }
 
+.budget-total-note {
+  margin: 14px 0 0;
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
 .budget-total-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
-  margin-top: 15px;
+  margin-top: 8px;
 }
 
 .budget-total-grid > div {
@@ -1394,30 +1403,17 @@ textarea:focus {
   font-size: 14px;
 }
 
-.csv-edit-grid .csv-native-picker {
-  min-width: 0;
-  min-height: 42px;
-  padding: 0 10px;
-}
-
-.csv-edit-grid .csv-native-picker .native-picker-value {
-  overflow: hidden;
-  min-width: 0;
-  font-size: 0.88rem;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.csv-edit-grid .csv-native-picker input {
-  position: absolute;
-  inset: 0;
+.csv-edit-grid .csv-date-input {
+  display: block;
   width: 100%;
-  height: 100%;
   min-width: 0;
-  min-height: 0;
-  padding: 0;
-  border: 0;
-  opacity: 0;
+  max-width: 100%;
+  min-height: 42px;
+  padding: 8px 10px;
+  appearance: none;
+  -webkit-appearance: none;
+  font-variant-numeric: tabular-nums;
+  text-align: left;
 }
 
 .csv-date-field { grid-column: span 1; }
