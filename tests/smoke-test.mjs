@@ -53,7 +53,7 @@ class FakeElement {
     this.handlers.get(type).push(handler);
   }
   async dispatch(type, extras = {}) {
-    const event = { target: this, preventDefault() {}, ...extras };
+    const event = { type, target: this, preventDefault() {}, stopPropagation() {}, ...extras };
     for (const handler of this.handlers.get(type) || []) await handler(event);
   }
   setAttribute(name, value) { this[name] = String(value); }
@@ -115,7 +115,7 @@ const styleText = await readFile(new URL("../style.css", import.meta.url), "utf8
 const indexText = await readFile(new URL("../index.html", import.meta.url), "utf8");
 
 assert.equal(readState().categories.length, 12, "初期カテゴリ数");
-assert.equal(readState().version, 2.1, "保存データをv2.1として正規化");
+assert.equal(readState().version, 2.2, "保存データをv2.2として正規化");
 assert.deepEqual(readState().categories.slice(0, 3).map(item => item.name), ["食費", "交際費", "日用品"], "よく使うカテゴリを先頭に表示");
 assert.ok(readState().categories.slice(-4).every(item => item.group === "固定費"), "固定費カテゴリを下に表示");
 assert.equal(readState().budgets.living, 150000, "生活費初期予算");
@@ -204,24 +204,46 @@ assert.equal(readState().quickInputs.length, 1, "クイック入力削除");
 
 getElement("csvPaste").value = [
   "date,amount,majorCategory,subCategory,memo",
-  "2026-06-27,980,日用品,日用品,コンビニ",
-  "2026-06-26,1350,食費,家飲み,ビールなど"
+  "2026-07-01,980,日用品,日用品,コンビニ",
+  "2026-06-27,1350,食費,家飲み,ビールなど"
 ].join("\n");
 getElement("csvSource").value = "receipt";
 await getElement("previewCsvButton").dispatch("click");
 assert.match(getElement("csvPreviewSummary").textContent, /2件を選択/, "CSVプレビュー");
-assert.match(getElement("csvPreviewList").innerHTML, /class="csv-date-input" type="text"/, "取り込み日付はSafari固有のdate入力を使わない");
-assert.match(getElement("csvPreviewList").innerHTML, /value="2026-06-27"/, "取り込み日付を固定形式で表示");
+assert.match(getElement("csvPreviewList").innerHTML, /7\/1/, "通常表示の日付は短く表示");
+assert.doesNotMatch(getElement("csvPreviewList").innerHTML, /class="csv-edit-form"/, "通常表示では編集フォームを出さない");
+const firstCsvId = getElement("csvPreviewList").innerHTML.match(/data-csv-id="([^"]+)"/)?.[1];
+const csvActionTarget = (action, rowId = firstCsvId) => ({
+  closest(selector) {
+    if (selector === "[data-csv-action]") return { dataset: { csvAction: action } };
+    if (selector === "[data-csv-id]") return { dataset: { csvId: rowId } };
+    return null;
+  }
+});
+await getElement("csvPreviewList").dispatch("click", { target: csvActionTarget("toggle") });
+assert.match(getElement("csvPreviewList").innerHTML, /class="csv-edit-form"/, "選んだ1件だけ編集フォームを展開");
+assert.match(getElement("csvPreviewList").innerHTML, /class="csv-date-input" type="text"/, "展開時の日付は固定形式で編集");
+const csvIds = [...getElement("csvPreviewList").innerHTML.matchAll(/data-csv-id="([^"]+)"/g)].map(match => match[1]);
+await getElement("csvPreviewList").dispatch("click", { target: csvActionTarget("toggle", csvIds[1]) });
+assert.equal((getElement("csvPreviewList").innerHTML.match(/class="csv-edit-form"/g) || []).length, 1, "同時に開く編集フォームは1件だけ");
+const amountEditTarget = {
+  dataset: { csvField: "amount" },
+  value: "2000",
+  closest(selector) { return selector === "[data-csv-id]" ? { dataset: { csvId: csvIds[1] } } : null; }
+};
+await getElement("csvPreviewList").dispatch("input", { target: amountEditTarget });
+assert.match(getElement("csvPreviewSummary").textContent, /¥2,980/, "金額編集をサマリーへ即時反映");
 assert.match(styleText, /\.csv-preview-card\s*\{[^}]*overflow:\s*hidden/s, "取り込みカードの横はみ出しを抑制");
-assert.match(styleText, /\.csv-edit-grid \.csv-date-input\s*\{[^}]*max-width:\s*100%/s, "iPhoneの日付入力をカード幅以内に制限");
-assert.match(styleText, /@media \(max-width: 620px\)[\s\S]*?\.csv-date-field,[\s\S]*?grid-column:\s*1 \/ -1/, "狭い画面で日付欄を1列表示");
-assert.match(indexText, /style\.css\?v=2\.1/, "Safariに最新CSSを読み込ませる");
-assert.match(indexText, /app\.js\?v=2\.1/, "Safariに最新JavaScriptを読み込ませる");
+assert.match(styleText, /\.csv-edit-form \.csv-date-input\s*\{[^}]*max-width:\s*100%/s, "iPhoneの日付入力をカード幅以内に制限");
+assert.match(styleText, /\.csv-edit-form\s*\{[^}]*display:\s*grid[^}]*gap:/s, "展開フォームを縦並び表示");
+assert.match(indexText, /style\.css\?v=2\.2/, "Safariに最新CSSを読み込ませる");
+assert.match(indexText, /app\.js\?v=2\.2/, "Safariに最新JavaScriptを読み込ませる");
 await getElement("importCsvButton").dispatch("click");
 assert.equal(readState().expenses.length, 3, "CSV取り込み");
 assert.equal(readState().expenses.filter(item => item.source === "receipt").length, 2, "選択したデータ元を保存");
-assert.equal(getElement("drinkMonthRemaining").textContent, "¥5,650", "家飲み月残り");
-assert.equal(getElement("drinkWeekRemaining").textContent, "¥283", "家飲み週目安と残り");
+assert.equal(getElement("filterMonth").value, "2026-07", "取り込み後は一番新しい日付の月を表示");
+assert.equal(getElement("drinkMonthRemaining").textContent, "¥5,000", "家飲み月残り");
+assert.equal(getElement("drinkWeekRemaining").textContent, "−¥367", "家飲み週目安と残り");
 
 getElement("filterMajor").value = "日用品";
 await getElement("filterMajor").dispatch("change");
@@ -233,6 +255,49 @@ await getElement("transactionList").dispatch("click", {
 });
 await getElement("detailDeleteButton").dispatch("click");
 assert.equal(readState().expenses.length, 2, "明細削除");
+
+getElement("csvPaste").value = [
+  "date,amount,majorCategory,subCategory,memo",
+  "2026-06-27,1200,食費,仕事中食費,ラーメン大盛り",
+  "2026-06-29,333,食費,食費,CSV重複テスト",
+  "2026-06-29,333,食費,食費,CSV重複テスト"
+].join("\n");
+await getElement("previewCsvButton").dispatch("click");
+const duplicateCards = getElement("csvPreviewList").innerHTML.split("<article").slice(1);
+const registeredDuplicateCard = duplicateCards.find(card => card.includes("ラーメン大盛り"));
+const csvOnlyDuplicateCards = duplicateCards.filter(card => card.includes("CSV重複テスト"));
+assert.match(registeredDuplicateCard, /登録済みかも/, "登録済み明細との重複を区別");
+assert.doesNotMatch(registeredDuplicateCard, /data-csv-field="include" checked/, "登録済み重複は初期チェックOFF");
+assert.equal(csvOnlyDuplicateCards.length, 2, "CSV内の重複候補を2件表示");
+assert.ok(csvOnlyDuplicateCards.every(card => /CSV内で重複かも/.test(card)), "CSV内重複の専用バッジ");
+assert.ok(csvOnlyDuplicateCards.every(card => /data-csv-field="include" checked/.test(card)), "CSV内重複は初期チェックON");
+
+getElement("csvPaste").value = [
+  "date,amount,majorCategory,subCategory,memo",
+  "2026-06-27,1100,食費,外食,ラーメン"
+].join("\n");
+await getElement("previewCsvButton").dispatch("click");
+assert.match(getElement("csvPreviewList").innerHTML, /小カテゴリを確認/, "未登録小カテゴリをエラー表示");
+const missingSubRowId = getElement("csvPreviewList").innerHTML.match(/data-csv-id="([^"]+)"/)?.[1];
+await getElement("csvPreviewList").dispatch("click", { target: csvActionTarget("add-sub", missingSubRowId) });
+assert.ok(readState().categories.find(item => item.name === "食費").subCategories.includes("外食"), "プレビューから小カテゴリ追加");
+assert.doesNotMatch(getElement("csvPreviewList").innerHTML, /小カテゴリを確認/, "小カテゴリ追加後にエラー解消");
+
+getElement("csvPaste").value = [
+  "date,amount,majorCategory,subCategory,memo",
+  "2026-06-30,5000,車関係,ガソリン,給油"
+].join("\n");
+await getElement("previewCsvButton").dispatch("click");
+assert.match(getElement("csvPreviewList").innerHTML, /大カテゴリを確認/, "未登録大カテゴリをエラー表示");
+const missingMajorRowId = getElement("csvPreviewList").innerHTML.match(/data-csv-id="([^"]+)"/)?.[1];
+await getElement("csvPreviewList").dispatch("click", { target: csvActionTarget("add-major", missingMajorRowId) });
+assert.equal(getElement("categoryName").value, "車関係", "CSVの大カテゴリ名を追加画面へ引き継ぐ");
+assert.equal(getElement("categoryFirstSub").value, "ガソリン", "CSVの小カテゴリ名を追加画面へ引き継ぐ");
+getElement("categoryGroup").value = "生活費";
+getElement("categoryBudget").value = "0";
+await getElement("categoryForm").dispatch("submit");
+assert.ok(readState().categories.some(item => item.name === "車関係" && item.subCategories.includes("ガソリン")), "プレビューから大カテゴリごと追加");
+assert.doesNotMatch(getElement("csvPreviewList").innerHTML, /大カテゴリを確認/, "大カテゴリ追加後にエラー解消");
 
 await getElement("exportCsvButton").dispatch("click");
 await getElement("exportJsonButton").dispatch("click");
@@ -247,14 +312,32 @@ assert.equal(readState().budgets.living, 160000, "予算変更");
 getElement("expenseDate").value = "2026-06-27";
 getElement("expenseAmount").value = "777";
 getElement("expenseMemo").value = "入力保持テスト";
+getElement("expenseMajor").value = "食費";
 await getElement("quickAddCategoryButton").dispatch("click");
+const categoryChoiceTarget = choice => ({
+  closest(selector) {
+    return selector === "[data-category-choice]" ? { dataset: { categoryChoice: choice } } : null;
+  }
+});
+await getElement("categoryChoiceModal").dispatch("click", { target: categoryChoiceTarget("sub") });
+getElement("subCategoryName").value = "プロテインバー";
+await getElement("subCategoryForm").dispatch("submit");
+assert.ok(readState().categories.find(item => item.name === "食費").subCategories.includes("プロテインバー"), "入力中の小カテゴリ追加");
+assert.equal(getElement("expenseMajor").value, "食費", "小カテゴリ追加後も大カテゴリを保持");
+assert.equal(getElement("expenseSub").value, "プロテインバー", "追加した小カテゴリを自動選択");
+assert.equal(getElement("expenseAmount").value, "777", "小カテゴリ追加中も金額を保持");
+assert.equal(getElement("expenseMemo").value, "入力保持テスト", "小カテゴリ追加中もメモを保持");
+
+await getElement("quickAddCategoryButton").dispatch("click");
+await getElement("categoryChoiceModal").dispatch("click", { target: categoryChoiceTarget("major") });
 getElement("categoryName").value = "ペット";
+getElement("categoryFirstSub").value = "ペット用品";
 getElement("categoryGroup").value = "生活費";
 getElement("categoryBudget").value = "5000";
 await getElement("categoryForm").dispatch("submit");
 assert.ok(readState().categories.some(item => item.name === "ペット"), "カテゴリ追加");
 assert.equal(getElement("expenseMajor").value, "ペット", "クイック追加後に新カテゴリを自動選択");
-assert.equal(getElement("expenseSub").value, "ペット", "クイック追加後に新しい小カテゴリを自動選択");
+assert.equal(getElement("expenseSub").value, "ペット用品", "指定した最初の小カテゴリを自動選択");
 assert.equal(getElement("expenseAmount").value, "777", "カテゴリ追加中も金額を保持");
 assert.equal(getElement("expenseMemo").value, "入力保持テスト", "カテゴリ追加中もメモを保持");
 assert.equal(getElement("livingCategoryBudgetTotal").textContent, "¥148,000", "生活費カテゴリ追加で合計更新");
@@ -292,15 +375,15 @@ const makeCategoryButton = (action, subIndex = null) => ({
     return null;
   }
 });
-prompts.push("外食");
+prompts.push("夕食");
 await getElement("categoryEditorList").dispatch("click", { target: makeCategoryButton("add-sub") });
-assert.ok(readState().categories.find(item => item.id === foodCategory.id).subCategories.includes("外食"), "小カテゴリ追加");
-const addedSubIndex = readState().categories.find(item => item.id === foodCategory.id).subCategories.indexOf("外食");
-prompts.push("外食・昼");
+assert.ok(readState().categories.find(item => item.id === foodCategory.id).subCategories.includes("夕食"), "小カテゴリ追加");
+const addedSubIndex = readState().categories.find(item => item.id === foodCategory.id).subCategories.indexOf("夕食");
+prompts.push("夕食・外食");
 await getElement("categoryEditorList").dispatch("click", { target: makeCategoryButton("rename-sub", addedSubIndex) });
-assert.ok(readState().categories.find(item => item.id === foodCategory.id).subCategories.includes("外食・昼"), "小カテゴリ名変更");
+assert.ok(readState().categories.find(item => item.id === foodCategory.id).subCategories.includes("夕食・外食"), "小カテゴリ名変更");
 await getElement("categoryEditorList").dispatch("click", { target: makeCategoryButton("delete-sub", addedSubIndex) });
-assert.ok(!readState().categories.find(item => item.id === foodCategory.id).subCategories.includes("外食・昼"), "小カテゴリ削除");
+assert.ok(!readState().categories.find(item => item.id === foodCategory.id).subCategories.includes("夕食・外食"), "小カテゴリ削除");
 
 const petCategory = readState().categories.find(item => item.name === "ペット用品");
 const petDeleteButton = {
@@ -324,6 +407,24 @@ assert.equal(readState().expenses.length, 2, "JSON復元");
 await getElement("deleteAllButton").dispatch("click");
 assert.equal(readState().expenses.length, 0, "全データ削除");
 assert.equal(readState().budgets.living, 150000, "全削除後は初期予算");
+
+getElement("csvPaste").value = [
+  "date,amount,majorCategory,subCategory,memo",
+  "2026-06-27,138,食費,食費,カットトマト（SUNNY）",
+  "2026-06-27,570,食費,食費,若鶏むね肉1kg（SUNNY）",
+  "2026-06-28,596,食費,食費,チョコ効果72%×2（SUNNY）",
+  "2026-07-01,1100,食費,仕事中食費,ラーメン"
+].join("\n");
+await getElement("previewCsvButton").dispatch("click");
+assert.match(getElement("csvPreviewSummary").textContent, /4件を選択・合計 ¥2,404/, "指定CSV4件の件数と合計");
+assert.equal((getElement("csvPreviewList").innerHTML.match(/class="csv-preview-card/g) || []).length, 4, "指定CSVを4枚のコンパクトカードで表示");
+assert.doesNotMatch(getElement("csvPreviewList").innerHTML, /class="csv-edit-form"/, "指定CSVも初期状態は一覧確認表示");
+await getElement("importCsvButton").dispatch("click");
+assert.equal(readState().expenses.length, 4, "指定CSV4件を登録");
+assert.equal(getElement("filterMonth").value, "2026-07", "指定CSV登録後は2026年7月を表示");
+
+await getElement("deleteAllButton").dispatch("click");
+assert.equal(readState().expenses.length, 0, "指定CSV確認後にテスト状態を初期化");
 
 const excludedExpenses = [
   ["水道・光熱費", "電気代"],
@@ -351,4 +452,4 @@ getElement("expenseSub").value = "食費";
 await getElement("expenseForm").dispatch("submit");
 assert.equal(getElement("todayAvailable").textContent, "¥32,500", "対象生活費の支出だけ日額から差し引く");
 
-console.log("SMOKE TEST OK: v2.1キャッシュ対策・日額計算・予算合計・入力中カテゴリ追加・iPhone日付表示・既存機能");
+console.log("SMOKE TEST OK: v2.2一覧型CSVプレビュー・カテゴリ追加・最新月表示・日額計算・予算合計・既存機能");
