@@ -2,7 +2,7 @@
   "use strict";
 
   const STORAGE_KEY = "mainichiKakeibo_v1";
-  const APP_VERSION = 2.1;
+  const APP_VERSION = 2.2;
   const DONUT_COLORS = ["#207a52", "#e5a72f", "#4b79b9", "#df7650", "#7d65b3", "#43a5a1", "#b76386", "#7e9251"];
 
   const DEFAULT_CATEGORIES = [
@@ -25,8 +25,10 @@
   let lastSavedId = null;
   let detailExpenseId = null;
   let csvPreviewRows = [];
+  let expandedCsvRowId = null;
   let toastTimer = null;
-  let categoryReturnTarget = null;
+  let categoryReturnContext = null;
+  let subCategoryTargetName = "";
 
   const $ = (selector, root = document) => root.querySelector(selector);
   const $$ = (selector, root = document) => Array.from(root.querySelectorAll(selector));
@@ -216,7 +218,7 @@
     els.expenseDate.addEventListener("change", updatePickerDisplays);
     els.expenseForm.addEventListener("submit", handleExpenseSubmit);
     els.cancelEditButton.addEventListener("click", () => resetExpenseForm());
-    $("#quickAddCategoryButton").addEventListener("click", () => openCategoryModal(null, "expense"));
+    $("#quickAddCategoryButton").addEventListener("click", () => openCategoryChoice({ type: "expense" }));
     els.quickInputList.addEventListener("click", handleQuickInputClick);
     $("#openImportButton").addEventListener("click", () => openModal("importModal"));
 
@@ -274,6 +276,8 @@
     els.budgetForm.addEventListener("submit", saveBudgets);
     $("#addCategoryButton").addEventListener("click", () => openCategoryModal());
     $("#categoryForm").addEventListener("submit", saveCategoryFromModal);
+    $("#categoryChoiceModal").addEventListener("click", handleCategoryChoice);
+    $("#subCategoryForm").addEventListener("submit", saveSubCategoryFromModal);
     els.categoryEditorList.addEventListener("click", handleCategoryAction);
 
     els.settingsQuickList.addEventListener("click", handleSettingsQuickAction);
@@ -281,6 +285,7 @@
     $("#quickEditForm").addEventListener("submit", saveQuickEdit);
 
     $("#previewCsvButton").addEventListener("click", prepareCsvPreview);
+    els.csvPreviewList.addEventListener("click", handleCsvPreviewClick);
     els.csvPreviewList.addEventListener("change", handleCsvPreviewChange);
     els.csvPreviewList.addEventListener("input", handleCsvPreviewChange);
     els.importCsvButton.addEventListener("click", importCsvRows);
@@ -730,13 +735,120 @@
       </article>`).join("");
   }
 
-  function openCategoryModal(category = null, returnTarget = null) {
-    categoryReturnTarget = returnTarget;
-    $("#categoryModalTitle").textContent = category ? "大カテゴリを編集" : "大カテゴリを追加";
+  function openCategoryChoice(context) {
+    categoryReturnContext = context;
+    const currentMajor = context?.type === "expense"
+      ? els.expenseMajor.value
+      : csvPreviewRows.find(row => row.tempId === context?.rowId)?.majorCategory;
+    $("#categoryChoiceSubExample").textContent = currentMajor
+      ? `例：${currentMajor} ＞ 新しい小カテゴリ`
+      : "先に大カテゴリを選んでください";
+    openModal("categoryChoiceModal");
+  }
+
+  function handleCategoryChoice(event) {
+    const button = event.target.closest("[data-category-choice]");
+    if (!button) return;
+    const choice = button.dataset.categoryChoice;
+    const context = categoryReturnContext;
+    const row = csvPreviewRows.find(item => item.tempId === context?.rowId);
+    const currentMajor = context?.type === "expense" ? els.expenseMajor.value : row?.majorCategory;
+    if (choice === "sub") {
+      if (!state.categories.some(category => category.name === currentMajor)) {
+        alert("追加先の大カテゴリを選んでください。");
+        return;
+      }
+      closeModal("categoryChoiceModal");
+      openSubCategoryModal(currentMajor, context);
+    }
+    if (choice === "major") {
+      closeModal("categoryChoiceModal");
+      openCategoryModal(null, context, row ? { name: row.majorCategory, firstSubCategory: row.subCategory } : {});
+    }
+    if (choice === "settings") {
+      closeModal("categoryChoiceModal");
+      categoryReturnContext = null;
+      navigate("settings");
+      window.setTimeout(() => $("#categorySettingsCard")?.scrollIntoView({ behavior: "smooth", block: "start" }), 120);
+    }
+  }
+
+  function openSubCategoryModal(categoryName, context) {
+    categoryReturnContext = context;
+    subCategoryTargetName = categoryName;
+    $("#subCategoryTarget").textContent = `${categoryName} に追加します`;
+    $("#subCategoryName").value = "";
+    openModal("subCategoryModal");
+    window.setTimeout(() => $("#subCategoryName").focus(), 100);
+  }
+
+  function saveSubCategoryFromModal(event) {
+    event.preventDefault();
+    const context = categoryReturnContext;
+    const result = addSubCategoryToCategory(subCategoryTargetName, $("#subCategoryName").value);
+    if (!result) return;
+    if (result.added) saveState();
+    closeModal("subCategoryModal");
+    renderAll();
+    if (context?.type === "expense") {
+      applyCategoryToExpenseForm(result.category.name, result.name);
+      navigate("input", false);
+      window.setTimeout(() => els.expenseSub.focus(), 100);
+    }
+    if (context?.type === "csv") {
+      applyCategoryToCsvRow(context.rowId, result.category.name, result.name);
+      recomputePreviewFlags();
+      renderCsvPreview();
+    }
+    categoryReturnContext = null;
+    showToast(result.added ? "小カテゴリを追加しました" : "既存の小カテゴリを選択しました");
+  }
+
+  function addSubCategoryToCategory(categoryName, subCategoryName) {
+    const category = state.categories.find(item => item.name === String(categoryName).trim());
+    const name = String(subCategoryName).trim();
+    if (!category || !name) return null;
+    if (category.subCategories.includes(name)) return { category, name, added: false };
+    category.subCategories.push(name);
+    return { category, name, added: true };
+  }
+
+  function createCategoryWithFirstSub({ name, firstSubCategory, group, budget }) {
+    const category = {
+      id: uid("cat"),
+      name: String(name).trim(),
+      group: group === "固定費" ? "固定費" : "生活費",
+      budget: nonNegativeNumber(budget),
+      subCategories: [String(firstSubCategory).trim()]
+    };
+    state.categories.push(category);
+    state.categories = orderCategories(state.categories);
+    return category;
+  }
+
+  function applyCategoryToExpenseForm(majorCategory, subCategory) {
+    populateExpenseCategories(majorCategory, subCategory);
+  }
+
+  function applyCategoryToCsvRow(rowId, majorCategory, subCategory) {
+    const row = csvPreviewRows.find(item => item.tempId === rowId);
+    if (!row) return;
+    row.majorCategory = majorCategory;
+    row.subCategory = subCategory;
+    expandedCsvRowId = rowId;
+  }
+
+  function openCategoryModal(category = null, context = null, defaults = {}) {
+    categoryReturnContext = context;
+    const isEditing = Boolean(category);
+    $("#categoryModalTitle").textContent = isEditing ? "大カテゴリを編集" : "大カテゴリごと追加";
     $("#categoryId").value = category?.id || "";
-    $("#categoryName").value = category?.name || "";
-    $("#categoryGroup").value = category?.group || "生活費";
-    $("#categoryBudget").value = category?.budget ?? 0;
+    $("#categoryName").value = category?.name || defaults.name || "";
+    $("#categoryFirstSub").value = defaults.firstSubCategory || "";
+    $("#categoryFirstSub").required = !isEditing;
+    $("#categoryFirstSubField").classList.toggle("is-hidden", isEditing);
+    $("#categoryGroup").value = category?.group || defaults.group || "生活費";
+    $("#categoryBudget").value = category?.budget ?? defaults.budget ?? 0;
     openModal("categoryModal");
     window.setTimeout(() => $("#categoryName").focus(), 100);
   }
@@ -745,13 +857,15 @@
     event.preventDefault();
     const id = $("#categoryId").value;
     const name = $("#categoryName").value.trim();
-    const returnToExpense = !id && categoryReturnTarget === "expense";
-    if (!name) return;
+    const firstSubCategory = $("#categoryFirstSub").value.trim();
+    const context = categoryReturnContext;
+    if (!name || (!id && !firstSubCategory)) return;
     const duplicate = state.categories.some(category => category.name === name && category.id !== id);
     if (duplicate) {
       alert("同じ名前の大カテゴリがすでにあります。");
       return;
     }
+    let selectedSub = firstSubCategory;
     if (id) {
       const category = state.categories.find(item => item.id === id);
       if (!category) return;
@@ -759,29 +873,34 @@
       category.name = name;
       category.group = $("#categoryGroup").value;
       category.budget = nonNegativeNumber($("#categoryBudget").value);
+      selectedSub = category.subCategories[0] || "";
       if (oldName !== name) {
         state.expenses.forEach(expense => { if (expense.majorCategory === oldName) expense.majorCategory = name; });
         state.quickInputs.forEach(quick => { if (quick.majorCategory === oldName) quick.majorCategory = name; });
       }
     } else {
-      state.categories.push({
-        id: uid("cat"),
+      createCategoryWithFirstSub({
         name,
+        firstSubCategory,
         group: $("#categoryGroup").value,
-        budget: nonNegativeNumber($("#categoryBudget").value),
-        subCategories: [name]
+        budget: $("#categoryBudget").value
       });
     }
     state.categories = orderCategories(state.categories);
     saveState();
     closeModal("categoryModal");
     renderAll();
-    if (returnToExpense) {
-      populateExpenseCategories(name, name);
+    if (!id && context?.type === "expense") {
+      applyCategoryToExpenseForm(name, selectedSub);
       navigate("input", false);
       window.setTimeout(() => els.expenseSub.focus(), 100);
     }
-    categoryReturnTarget = null;
+    if (!id && context?.type === "csv") {
+      applyCategoryToCsvRow(context.rowId, name, selectedSub);
+      recomputePreviewFlags();
+      renderCsvPreview();
+    }
+    categoryReturnContext = null;
     showToast("カテゴリを保存しました");
   }
 
@@ -821,13 +940,12 @@
   function addSubCategory(category) {
     const value = prompt(`「${category.name}」に追加する小カテゴリ名`);
     if (value === null) return;
-    const name = value.trim();
-    if (!name) return;
-    if (category.subCategories.includes(name)) {
+    const result = addSubCategoryToCategory(category.name, value);
+    if (!result) return;
+    if (!result.added) {
       alert("同じ名前の小カテゴリがすでにあります。");
       return;
     }
-    category.subCategories.push(name);
     saveState();
     renderAll();
     showToast("小カテゴリを追加しました");
@@ -970,13 +1088,19 @@
       majorCategory: String(row[indexes.majorCategory] ?? "").trim(),
       subCategory: String(row[indexes.subCategory] ?? "").trim(),
       memo: String(row[indexes.memo] ?? "").trim(),
-      duplicate: false
+      duplicate: false,
+      duplicateExisting: false,
+      duplicateCsv: false
     }));
     if (!csvPreviewRows.length) {
       alert("取り込める明細行がありません。");
       return;
     }
+    expandedCsvRowId = null;
     recomputePreviewFlags();
+    csvPreviewRows.forEach(row => {
+      if (row.duplicateExisting) row.include = false;
+    });
     renderCsvPreview();
     closeModal("importModal");
     openModal("csvPreviewModal");
@@ -1022,33 +1146,114 @@
     els.csvPreviewList.innerHTML = csvPreviewRows.map((row, index) => {
       const category = state.categories.find(item => item.name === row.majorCategory);
       const errors = previewErrors(row);
-      const badge = errors.length
-        ? `<span class="error-badge">${escapeHtml(errors[0])}</span>`
-        : row.duplicate ? `<span class="duplicate-badge">重複候補</span>` : "";
+      const isExpanded = row.tempId === expandedCsvRowId;
+      const majorExists = Boolean(category);
+      const subExists = Boolean(category?.subCategories.includes(row.subCategory));
+      const badges = [
+        ...errors.map(error => `<span class="error-badge">${escapeHtml(error)}</span>`),
+        row.duplicateExisting ? `<span class="duplicate-badge">登録済みかも</span>` : "",
+        row.duplicateCsv ? `<span class="duplicate-badge csv-duplicate-badge">CSV内で重複かも</span>` : ""
+      ].filter(Boolean).join("");
+      const dateLabel = validDateString(row.date) ? formatShortDate(row.date) : (row.date || "日付未設定");
+      const missingSubOption = majorExists && row.subCategory && !subExists
+        ? `<option value="${escapeAttr(row.subCategory)}" selected>${escapeHtml(row.subCategory)}（未登録）</option>`
+        : "";
+      const missingMajorOption = row.majorCategory && !majorExists
+        ? `<option value="${escapeAttr(row.majorCategory)}" selected>${escapeHtml(row.majorCategory)}（未登録）</option>`
+        : "";
+      const errorActions = !majorExists
+        ? `<div class="csv-error-actions">
+            <button type="button" data-csv-action="edit">既存カテゴリに変更</button>
+            <button type="button" data-csv-action="add-major">大カテゴリごと追加</button>
+            <button type="button" data-csv-action="exclude">取り込まない</button>
+          </div>`
+        : !subExists
+          ? `<div class="csv-error-actions">
+              <button type="button" data-csv-action="edit">既存カテゴリに変更</button>
+              ${row.subCategory ? `<button type="button" data-csv-action="add-sub">${escapeHtml(row.majorCategory)}に「${escapeHtml(row.subCategory)}」を追加</button>` : ""}
+              <button type="button" data-csv-action="exclude">取り込まない</button>
+            </div>`
+          : "";
       return `
-        <article class="csv-preview-card" data-csv-id="${escapeAttr(row.tempId)}">
-          <div class="csv-card-head">
-            <label class="include-toggle"><input type="checkbox" data-csv-field="include" ${row.include ? "checked" : ""}>取り込む</label>
-            ${badge}
+        <article class="csv-preview-card${isExpanded ? " is-expanded" : ""}${row.include ? "" : " is-excluded"}" data-csv-id="${escapeAttr(row.tempId)}">
+          <div class="csv-compact-view">
+            <div class="csv-summary-line">
+              <label class="include-toggle" aria-label="${index + 1}件目を取り込む"><input type="checkbox" data-csv-field="include" ${row.include ? "checked" : ""}><span>取り込む</span></label>
+              <div class="csv-date-amount"><time>${escapeHtml(dateLabel)}</time><strong>${Number.isFinite(row.amount) ? yen(row.amount) : "金額未設定"}</strong></div>
+              <button class="csv-edit-button" type="button" data-csv-action="toggle" aria-expanded="${isExpanded}">${isExpanded ? "閉じる" : "編集"}</button>
+            </div>
+            <p class="csv-category-text">${escapeHtml(row.majorCategory || "大カテゴリ未設定")} <span>＞</span> ${escapeHtml(row.subCategory || "小カテゴリ未設定")}</p>
+            <p class="csv-memo-text">${escapeHtml(row.memo || "メモなし")}</p>
+            ${badges ? `<div class="csv-badge-row">${badges}</div>` : ""}
+            ${errorActions}
           </div>
-          <div class="csv-edit-grid">
-            <label class="csv-date-field">日付
+          ${isExpanded ? `<div class="csv-edit-form">
+            <label class="${validDateString(row.date) ? "" : "has-error"}">日付
               <input class="csv-date-input" type="text" data-csv-field="date" value="${escapeAttr(row.date)}" maxlength="10" placeholder="YYYY-MM-DD" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="取り込み明細${index + 1}件目の日付">
             </label>
-            <label class="csv-amount-field">金額<input type="number" inputmode="numeric" min="1" data-csv-field="amount" value="${Number.isFinite(row.amount) ? row.amount : ""}"></label>
-            <label>大カテゴリ<select data-csv-field="majorCategory">
+            <label class="${Number.isFinite(row.amount) && row.amount > 0 ? "" : "has-error"}">金額<input type="number" inputmode="numeric" min="1" data-csv-field="amount" value="${Number.isFinite(row.amount) ? row.amount : ""}"></label>
+            <label class="${majorExists ? "" : "has-error"}">大カテゴリ<select data-csv-field="majorCategory">
               <option value="">選択</option>
+              ${missingMajorOption}
               ${state.categories.map(item => `<option value="${escapeAttr(item.name)}" ${item.name === row.majorCategory ? "selected" : ""}>${escapeHtml(item.name)}</option>`).join("")}
             </select></label>
-            <label>小カテゴリ<select data-csv-field="subCategory">
+            <label class="${subExists ? "" : "has-error"}">小カテゴリ<select data-csv-field="subCategory">
               <option value="">選択</option>
+              ${missingSubOption}
               ${(category?.subCategories || []).map(sub => `<option value="${escapeAttr(sub)}" ${sub === row.subCategory ? "selected" : ""}>${escapeHtml(sub)}</option>`).join("")}
             </select></label>
-            <label class="wide">メモ<input type="text" maxlength="80" data-csv-field="memo" value="${escapeAttr(row.memo)}"></label>
-          </div>
+            <label>メモ<input type="text" maxlength="80" data-csv-field="memo" value="${escapeAttr(row.memo)}"></label>
+            <button class="secondary-button csv-collapse-button" type="button" data-csv-action="toggle">編集を閉じる</button>
+          </div>` : ""}
         </article>`;
     }).join("");
     updatePreviewSummary();
+  }
+
+  function handleCsvPreviewClick(event) {
+    const card = event.target.closest("[data-csv-id]");
+    if (!card) return;
+    const row = csvPreviewRows.find(item => item.tempId === card.dataset.csvId);
+    if (!row) return;
+    const actionButton = event.target.closest("[data-csv-action]");
+    if (!actionButton) {
+      if (event.target.closest("input, select, label, button")) return;
+      expandedCsvRowId = expandedCsvRowId === row.tempId ? null : row.tempId;
+      renderCsvPreview();
+      return;
+    }
+    event.preventDefault?.();
+    event.stopPropagation?.();
+    const action = actionButton.dataset.csvAction;
+    if (action === "toggle" || action === "edit") {
+      expandedCsvRowId = expandedCsvRowId === row.tempId && action === "toggle" ? null : row.tempId;
+      renderCsvPreview();
+      return;
+    }
+    if (action === "exclude") {
+      row.include = false;
+      renderCsvPreview();
+      return;
+    }
+    if (action === "add-sub") {
+      const result = addSubCategoryToCategory(row.majorCategory, row.subCategory);
+      if (!result) return;
+      if (result.added) saveState();
+      renderAll();
+      applyCategoryToCsvRow(row.tempId, result.category.name, result.name);
+      recomputePreviewFlags();
+      renderCsvPreview();
+      showToast(result.added ? "小カテゴリを追加しました" : "既存の小カテゴリを適用しました");
+      return;
+    }
+    if (action === "add-major") {
+      openCategoryModal(null, { type: "csv", rowId: row.tempId }, {
+        name: row.majorCategory,
+        firstSubCategory: row.subCategory,
+        group: "生活費",
+        budget: 0
+      });
+    }
   }
 
   function handleCsvPreviewChange(event) {
@@ -1069,25 +1274,18 @@
     }
     recomputePreviewFlags();
     updatePreviewSummary();
-    const errors = previewErrors(row);
-    let badge = $(".duplicate-badge, .error-badge", card);
-    const badgeText = errors[0] || (row.duplicate ? "重複候補" : "");
-    if (badgeText && !badge) {
-      badge = document.createElement("span");
-      $(".csv-card-head", card).appendChild(badge);
-    }
-    if (badge) {
-      badge.className = errors.length ? "error-badge" : "duplicate-badge";
-      badge.textContent = badgeText;
-      if (!badgeText) badge.remove();
-    }
+    if (field === "include" || (field === "subCategory" && event.type === "change")) renderCsvPreview();
   }
 
   function recomputePreviewFlags() {
     csvPreviewRows.forEach(row => {
-      row.duplicate = [...state.expenses, ...csvPreviewRows.filter(other => other.tempId !== row.tempId)].some(other =>
+      row.duplicateExisting = state.expenses.some(other =>
         other.date === row.date && Number(other.amount) === Number(row.amount) && similarMemo(other.memo, row.memo)
       );
+      row.duplicateCsv = csvPreviewRows.some(other => other.tempId !== row.tempId &&
+        other.date === row.date && Number(other.amount) === Number(row.amount) && similarMemo(other.memo, row.memo)
+      );
+      row.duplicate = row.duplicateExisting || row.duplicateCsv;
     });
   }
 
@@ -1096,15 +1294,25 @@
     if (!validDateString(row.date)) errors.push("日付を確認");
     if (!Number.isFinite(row.amount) || row.amount <= 0) errors.push("金額を確認");
     const category = state.categories.find(item => item.name === row.majorCategory);
-    if (!category) errors.push("大カテゴリを選択");
-    else if (!category.subCategories.includes(row.subCategory)) errors.push("小カテゴリを選択");
+    if (!category) errors.push("大カテゴリを確認");
+    else if (!category.subCategories.includes(row.subCategory)) errors.push("小カテゴリを確認");
     return errors;
   }
 
   function updatePreviewSummary() {
     const included = csvPreviewRows.filter(row => row.include);
     const duplicates = included.filter(row => row.duplicate).length;
-    els.csvPreviewSummary.textContent = `${included.length}件を選択・合計 ${yen(sum(included.map(row => Number.isFinite(row.amount) ? row.amount : 0)))}${duplicates ? `・重複候補 ${duplicates}件` : ""}`;
+    const invalid = included.filter(row => previewErrors(row).length).length;
+    const validDates = included.filter(row => validDateString(row.date)).map(row => row.date).sort();
+    const detail = [];
+    if (invalid) detail.push(`要確認 ${invalid}件`);
+    else if (validDates.length) {
+      const first = formatShortDate(validDates[0]);
+      const last = formatShortDate(validDates[validDates.length - 1]);
+      detail.push(`日付：${first}${first === last ? "" : `〜${last}`}`);
+    }
+    if (duplicates) detail.push(`重複候補 ${duplicates}件`);
+    els.csvPreviewSummary.textContent = `${included.length}件を選択・合計 ${yen(sum(included.map(row => Number.isFinite(row.amount) ? row.amount : 0)))}${detail.length ? `\n${detail.join("・")}` : ""}`;
   }
 
   function importCsvRows() {
@@ -1118,8 +1326,9 @@
       alert("入力に不備がある行があります。赤い表示の項目を修正するか、「取り込む」を外してください。");
       return;
     }
-    const duplicateCount = selected.filter(row => row.duplicate).length;
-    if (duplicateCount && !confirm(`重複候補が${duplicateCount}件含まれています。選択したまま取り込みますか？`)) return;
+    const existingDuplicateCount = selected.filter(row => row.duplicateExisting).length;
+    const csvDuplicateCount = selected.filter(row => row.duplicateCsv).length;
+    if ((existingDuplicateCount || csvDuplicateCount) && !confirm(`重複候補が含まれています（登録済み ${existingDuplicateCount}件・CSV内 ${csvDuplicateCount}件）。選択したまま取り込みますか？`)) return;
     const now = new Date().toISOString();
     state.expenses.push(...selected.map((row, index) => ({
       id: uid("exp"),
@@ -1132,16 +1341,18 @@
       updatedAt: now,
       source: els.csvSource.value
     })));
+    const sortedDates = selected.map(row => row.date).sort();
+    const latestDate = sortedDates[sortedDates.length - 1];
     saveState();
     els.csvPaste.value = "";
     csvPreviewRows = [];
+    expandedCsvRowId = null;
     closeModal("csvPreviewModal");
     els.filterMajor.value = "";
     els.filterSub.value = "";
+    els.filterMonth.value = monthKey(latestDate);
     renderAll();
-    els.filterMonth.value = monthKey(selected[0].date);
     updatePickerDisplays();
-    renderTransactions();
     navigate("transactions");
     showToast(`${selected.length}件を取り込みました`);
   }
