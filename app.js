@@ -1174,6 +1174,25 @@
               <button type="button" data-csv-action="exclude">取り込まない</button>
             </div>`
           : "";
+      const editorHtml = isExpanded ? `
+        <section class="csv-inline-editor" data-csv-id="${escapeAttr(row.tempId)}" aria-label="取り込み明細${index + 1}件目の編集フォーム">
+          <label class="${validDateString(row.date) ? "" : "has-error"}">日付
+            <input class="csv-date-input" type="text" data-csv-field="date" value="${escapeAttr(row.date)}" maxlength="10" placeholder="YYYY-MM-DD" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="取り込み明細${index + 1}件目の日付">
+          </label>
+          <label class="${Number.isFinite(row.amount) && row.amount > 0 ? "" : "has-error"}">金額<input type="number" inputmode="numeric" min="1" data-csv-field="amount" value="${Number.isFinite(row.amount) ? row.amount : ""}"></label>
+          <label class="${majorExists ? "" : "has-error"}">大カテゴリ<select data-csv-field="majorCategory">
+            <option value="">選択</option>
+            ${missingMajorOption}
+            ${state.categories.map(item => `<option value="${escapeAttr(item.name)}" ${item.name === row.majorCategory ? "selected" : ""}>${escapeHtml(item.name)}</option>`).join("")}
+          </select></label>
+          <label class="${subExists ? "" : "has-error"}">小カテゴリ<select data-csv-field="subCategory">
+            <option value="">選択</option>
+            ${missingSubOption}
+            ${(category?.subCategories || []).map(sub => `<option value="${escapeAttr(sub)}" ${sub === row.subCategory ? "selected" : ""}>${escapeHtml(sub)}</option>`).join("")}
+          </select></label>
+          <label>メモ<input type="text" maxlength="80" data-csv-field="memo" value="${escapeAttr(row.memo)}"></label>
+          <button class="secondary-button csv-collapse-button" type="button" data-csv-action="toggle">編集を閉じる</button>
+        </section>` : "";
       return `
         <article class="csv-preview-card${isExpanded ? " is-expanded" : ""}${row.include ? "" : " is-excluded"}" data-csv-id="${escapeAttr(row.tempId)}">
           <div class="csv-compact-view">
@@ -1187,25 +1206,8 @@
             ${badges ? `<div class="csv-badge-row">${badges}</div>` : ""}
             ${errorActions}
           </div>
-          ${isExpanded ? `<div class="csv-edit-form">
-            <label class="${validDateString(row.date) ? "" : "has-error"}">日付
-              <input class="csv-date-input" type="text" data-csv-field="date" value="${escapeAttr(row.date)}" maxlength="10" placeholder="YYYY-MM-DD" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="取り込み明細${index + 1}件目の日付">
-            </label>
-            <label class="${Number.isFinite(row.amount) && row.amount > 0 ? "" : "has-error"}">金額<input type="number" inputmode="numeric" min="1" data-csv-field="amount" value="${Number.isFinite(row.amount) ? row.amount : ""}"></label>
-            <label class="${majorExists ? "" : "has-error"}">大カテゴリ<select data-csv-field="majorCategory">
-              <option value="">選択</option>
-              ${missingMajorOption}
-              ${state.categories.map(item => `<option value="${escapeAttr(item.name)}" ${item.name === row.majorCategory ? "selected" : ""}>${escapeHtml(item.name)}</option>`).join("")}
-            </select></label>
-            <label class="${subExists ? "" : "has-error"}">小カテゴリ<select data-csv-field="subCategory">
-              <option value="">選択</option>
-              ${missingSubOption}
-              ${(category?.subCategories || []).map(sub => `<option value="${escapeAttr(sub)}" ${sub === row.subCategory ? "selected" : ""}>${escapeHtml(sub)}</option>`).join("")}
-            </select></label>
-            <label>メモ<input type="text" maxlength="80" data-csv-field="memo" value="${escapeAttr(row.memo)}"></label>
-            <button class="secondary-button csv-collapse-button" type="button" data-csv-action="toggle">編集を閉じる</button>
-          </div>` : ""}
-        </article>`;
+        </article>
+        ${editorHtml}`;
     }).join("");
     updatePreviewSummary();
   }
