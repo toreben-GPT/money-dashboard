@@ -7,7 +7,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <title>まいにち家計簿</title>
-  <link rel="stylesheet" href="style.css?v=2.1">
+  <link rel="stylesheet" href="style.css?v=2.2">
 </head>
 <body>
   <div class="app-shell">
@@ -221,7 +221,7 @@
           </form>
         </article>
 
-        <article class="section-card settings-card">
+        <article class="section-card settings-card" id="categorySettingsCard">
           <div class="section-heading">
             <div>
               <p class="mini-kicker">大・小カテゴリ</p>
@@ -272,7 +272,7 @@
           <button class="danger-button" id="deleteAllButton" type="button">すべて削除</button>
         </article>
 
-        <p class="version-label">まいにち家計簿 v2.1</p>
+        <p class="version-label">まいにち家計簿 v2.2</p>
       </section>
     </main>
 
@@ -320,6 +320,7 @@
       <form id="categoryForm" class="stack-form">
         <input id="categoryId" type="hidden">
         <label class="field"><span>大カテゴリ名</span><input id="categoryName" type="text" maxlength="30" required></label>
+        <label class="field" id="categoryFirstSubField"><span>最初の小カテゴリ名</span><input id="categoryFirstSub" type="text" maxlength="30"></label>
         <label class="field"><span>グループ</span><select id="categoryGroup"><option value="固定費">固定費</option><option value="生活費">生活費</option></select></label>
         <label class="field"><span>月予算</span><div class="suffix-input"><input id="categoryBudget" type="number" min="0" step="100"><span>円</span></div></label>
         <button class="primary-button" type="submit">保存</button>
@@ -392,8 +393,43 @@
     </div>
   </div>
 
+  <div class="modal-backdrop category-flow-backdrop is-hidden" id="categoryChoiceModal" role="dialog" aria-modal="true" aria-labelledby="categoryChoiceTitle">
+    <div class="modal-card bottom-sheet">
+      <button class="modal-close" type="button" data-close-modal="categoryChoiceModal" aria-label="閉じる">×</button>
+      <p class="mini-kicker">入力内容はそのまま保持されます</p>
+      <h2 id="categoryChoiceTitle">カテゴリを追加</h2>
+      <div class="category-choice-list">
+        <button class="category-choice-button" type="button" data-category-choice="sub">
+          <strong>今の大カテゴリに小カテゴリを追加</strong>
+          <small id="categoryChoiceSubExample">例：食費 ＞ 朝食</small>
+        </button>
+        <button class="category-choice-button" type="button" data-category-choice="major">
+          <strong>大カテゴリごと追加</strong>
+          <small>例：車関係 ＞ ガソリン</small>
+        </button>
+        <button class="category-choice-button" type="button" data-category-choice="settings">
+          <strong>設定で詳しく編集</strong>
+          <small>カテゴリ名変更・削除・予算変更など</small>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-backdrop category-flow-backdrop is-hidden" id="subCategoryModal" role="dialog" aria-modal="true" aria-labelledby="subCategoryModalTitle">
+    <div class="modal-card bottom-sheet">
+      <button class="modal-close" type="button" data-close-modal="subCategoryModal" aria-label="閉じる">×</button>
+      <p class="mini-kicker">小カテゴリ追加</p>
+      <h2 id="subCategoryModalTitle">小カテゴリを追加</h2>
+      <form id="subCategoryForm" class="stack-form">
+        <p class="category-target" id="subCategoryTarget"></p>
+        <label class="field"><span>小カテゴリ名</span><input id="subCategoryName" type="text" maxlength="30" required></label>
+        <button class="primary-button" type="submit">保存</button>
+      </form>
+    </div>
+  </div>
+
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-  <script src="app.js?v=2.1"></script>
+  <script src="app.js?v=2.2"></script>
 </body>
 </html>
