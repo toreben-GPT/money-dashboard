@@ -115,7 +115,7 @@ const styleText = await readFile(new URL("../style.css", import.meta.url), "utf8
 const indexText = await readFile(new URL("../index.html", import.meta.url), "utf8");
 
 assert.equal(readState().categories.length, 12, "初期カテゴリ数");
-assert.equal(readState().version, 2.2, "保存データをv2.2として正規化");
+assert.equal(readState().version, 2.3, "保存データをv2.3として正規化");
 assert.deepEqual(readState().categories.slice(0, 3).map(item => item.name), ["食費", "交際費", "日用品"], "よく使うカテゴリを先頭に表示");
 assert.ok(readState().categories.slice(-4).every(item => item.group === "固定費"), "固定費カテゴリを下に表示");
 assert.equal(readState().budgets.living, 150000, "生活費初期予算");
@@ -263,8 +263,8 @@ assert.match(getElement("csvPreviewList").innerHTML, /テスト2更新/, "編集
 assert.match(styleText, /\.csv-preview-card\s*\{[^}]*overflow:\s*visible/s, "コンパクトカードの高さを制限しない");
 assert.match(styleText, /\.csv-inline-editor \.csv-date-input\s*\{[^}]*max-width:\s*100%/s, "iPhoneの日付入力をパネル幅以内に制限");
 assert.match(styleText, /\.csv-inline-editor\s*\{[^}]*display:\s*grid[^}]*width:\s*100%[^}]*gap:/s, "独立編集パネルを縦並び・全幅表示");
-assert.match(indexText, /style\.css\?v=2\.2/, "Safariに最新CSSを読み込ませる");
-assert.match(indexText, /app\.js\?v=2\.2/, "Safariに最新JavaScriptを読み込ませる");
+assert.match(indexText, /style\.css\?v=2\.3/, "Safariに最新CSSを読み込ませる");
+assert.match(indexText, /app\.js\?v=2\.3/, "Safariに最新JavaScriptを読み込ませる");
 await getElement("importCsvButton").dispatch("click");
 assert.equal(readState().expenses.length, 4, "CSV取り込み");
 assert.equal(readState().expenses.filter(item => item.source === "receipt").length, 3, "選択したデータ元を保存");
@@ -479,4 +479,4 @@ getElement("expenseSub").value = "食費";
 await getElement("expenseForm").dispatch("submit");
 assert.equal(getElement("todayAvailable").textContent, "¥32,500", "対象生活費の支出だけ日額から差し引く");
 
-console.log("SMOKE TEST OK: v2.2一覧型CSVプレビュー・カテゴリ追加・最新月表示・日額計算・予算合計・既存機能");
+console.log("SMOKE TEST OK: v2.3 Safari向け独立編集パネル・一覧型CSVプレビュー・カテゴリ追加・最新月表示・日額計算・予算合計・既存機能");
