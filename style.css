@@ -1342,7 +1342,7 @@ textarea:focus {
 
 .csv-preview-card {
   min-width: 0;
-  overflow: hidden;
+  overflow: visible;
   padding: 13px;
   border: 1px solid var(--line);
   border-radius: 15px;
@@ -1491,30 +1491,35 @@ textarea:focus {
   color: #a83232;
 }
 
-.csv-edit-form {
+.csv-inline-editor {
   display: grid;
+  width: 100%;
+  min-width: 0;
   gap: 10px;
-  margin-top: 13px;
-  padding-top: 13px;
-  border-top: 1px solid var(--line);
+  margin: -4px 0 10px;
+  padding: 14px;
+  border: 1px solid #cfe2d6;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 4px 14px rgba(32, 122, 82, 0.06);
   cursor: default;
 }
 
-.csv-edit-form label {
+.csv-inline-editor label {
   display: grid;
   min-width: 0;
-  gap: 4px;
+  gap: 5px;
   color: var(--muted);
   font-size: 0.72rem;
   font-weight: 700;
 }
 
-.csv-edit-form label.has-error {
+.csv-inline-editor label.has-error {
   color: #a83232;
 }
 
-.csv-edit-form input,
-.csv-edit-form select {
+.csv-inline-editor input,
+.csv-inline-editor select {
   width: 100%;
   min-width: 0;
   max-width: 100%;
@@ -1523,19 +1528,19 @@ textarea:focus {
   font-size: 16px;
 }
 
-.csv-edit-form label.has-error input,
-.csv-edit-form label.has-error select {
+.csv-inline-editor label.has-error input,
+.csv-inline-editor label.has-error select {
   border-color: #df8e8e;
   background: #fffafa;
 }
 
-.csv-edit-form .csv-date-input {
+.csv-inline-editor .csv-date-input {
   display: block;
   width: 100%;
   min-width: 0;
   max-width: 100%;
-  min-height: 42px;
-  padding: 8px 10px;
+  min-height: 46px;
+  padding: 9px 10px;
   appearance: none;
   -webkit-appearance: none;
   font-variant-numeric: tabular-nums;
