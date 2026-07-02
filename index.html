@@ -7,7 +7,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <title>まいにち家計簿</title>
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style.css?v=2.1">
 </head>
 <body>
   <div class="app-shell">
@@ -229,6 +229,7 @@
             </div>
             <button class="small-button" id="addCategoryButton" type="button">＋ 追加</button>
           </div>
+          <p class="budget-total-note">現在設定している大カテゴリ月予算の合計</p>
           <div class="budget-total-grid" aria-label="大カテゴリ予算の合計">
             <div><span>生活費合計</span><strong id="livingCategoryBudgetTotal">¥0</strong></div>
             <div><span>固定費合計</span><strong id="fixedCategoryBudgetTotal">¥0</strong></div>
@@ -271,7 +272,7 @@
           <button class="danger-button" id="deleteAllButton" type="button">すべて削除</button>
         </article>
 
-        <p class="version-label">まいにち家計簿 v2.0</p>
+        <p class="version-label">まいにち家計簿 v2.1</p>
       </section>
     </main>
 
@@ -393,6 +394,6 @@
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-  <script src="app.js"></script>
+  <script src="app.js?v=2.1"></script>
 </body>
 </html>
