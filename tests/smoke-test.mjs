@@ -112,9 +112,10 @@ await import("../app.js");
 const key = "mainichiKakeibo_v1";
 const readState = () => JSON.parse(storage.get(key));
 const styleText = await readFile(new URL("../style.css", import.meta.url), "utf8");
+const indexText = await readFile(new URL("../index.html", import.meta.url), "utf8");
 
 assert.equal(readState().categories.length, 12, "初期カテゴリ数");
-assert.equal(readState().version, 2, "保存データをv2として正規化");
+assert.equal(readState().version, 2.1, "保存データをv2.1として正規化");
 assert.deepEqual(readState().categories.slice(0, 3).map(item => item.name), ["食費", "交際費", "日用品"], "よく使うカテゴリを先頭に表示");
 assert.ok(readState().categories.slice(-4).every(item => item.group === "固定費"), "固定費カテゴリを下に表示");
 assert.equal(readState().budgets.living, 150000, "生活費初期予算");
@@ -209,11 +210,13 @@ getElement("csvPaste").value = [
 getElement("csvSource").value = "receipt";
 await getElement("previewCsvButton").dispatch("click");
 assert.match(getElement("csvPreviewSummary").textContent, /2件を選択/, "CSVプレビュー");
-assert.match(getElement("csvPreviewList").innerHTML, /native-picker csv-native-picker/, "取り込み日付は通常入力と同じiPhone対応部品");
-assert.match(getElement("csvPreviewList").innerHTML, /2026年6月27日/, "取り込み日付を読みやすく表示");
+assert.match(getElement("csvPreviewList").innerHTML, /class="csv-date-input" type="text"/, "取り込み日付はSafari固有のdate入力を使わない");
+assert.match(getElement("csvPreviewList").innerHTML, /value="2026-06-27"/, "取り込み日付を固定形式で表示");
 assert.match(styleText, /\.csv-preview-card\s*\{[^}]*overflow:\s*hidden/s, "取り込みカードの横はみ出しを抑制");
-assert.match(styleText, /\.csv-edit-grid \.csv-native-picker input\s*\{[^}]*opacity:\s*0/s, "iPhoneの日付入力は幅を制御して透明化");
+assert.match(styleText, /\.csv-edit-grid \.csv-date-input\s*\{[^}]*max-width:\s*100%/s, "iPhoneの日付入力をカード幅以内に制限");
 assert.match(styleText, /@media \(max-width: 620px\)[\s\S]*?\.csv-date-field,[\s\S]*?grid-column:\s*1 \/ -1/, "狭い画面で日付欄を1列表示");
+assert.match(indexText, /style\.css\?v=2\.1/, "Safariに最新CSSを読み込ませる");
+assert.match(indexText, /app\.js\?v=2\.1/, "Safariに最新JavaScriptを読み込ませる");
 await getElement("importCsvButton").dispatch("click");
 assert.equal(readState().expenses.length, 3, "CSV取り込み");
 assert.equal(readState().expenses.filter(item => item.source === "receipt").length, 2, "選択したデータ元を保存");
@@ -348,4 +351,4 @@ getElement("expenseSub").value = "食費";
 await getElement("expenseForm").dispatch("submit");
 assert.equal(getElement("todayAvailable").textContent, "¥32,500", "対象生活費の支出だけ日額から差し引く");
 
-console.log("SMOKE TEST OK: v2日額計算・予算合計・入力中カテゴリ追加・iPhone日付表示・既存機能");
+console.log("SMOKE TEST OK: v2.1キャッシュ対策・日額計算・予算合計・入力中カテゴリ追加・iPhone日付表示・既存機能");
