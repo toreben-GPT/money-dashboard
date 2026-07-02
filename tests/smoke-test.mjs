@@ -204,14 +204,18 @@ assert.equal(readState().quickInputs.length, 1, "クイック入力削除");
 
 getElement("csvPaste").value = [
   "date,amount,majorCategory,subCategory,memo",
-  "2026-07-01,980,日用品,日用品,コンビニ",
-  "2026-06-27,1350,食費,家飲み,ビールなど"
+  "2026-06-28,712,食費,食費,テスト1",
+  "2026-06-28,1926,食費,家飲み,テスト2",
+  "2026-06-25,4654,日用品,日用品,テスト3"
 ].join("\n");
 getElement("csvSource").value = "receipt";
 await getElement("previewCsvButton").dispatch("click");
-assert.match(getElement("csvPreviewSummary").textContent, /2件を選択/, "CSVプレビュー");
-assert.match(getElement("csvPreviewList").innerHTML, /7\/1/, "通常表示の日付は短く表示");
-assert.doesNotMatch(getElement("csvPreviewList").innerHTML, /class="csv-edit-form"/, "通常表示では編集フォームを出さない");
+assert.match(getElement("csvPreviewSummary").textContent, /3件を選択・合計 ¥7,292/, "指定CSV3件のプレビュー");
+assert.match(getElement("csvPreviewList").innerHTML, /6\/28/, "通常表示の日付は短く表示");
+assert.match(getElement("csvPreviewList").innerHTML, /食費 <span>＞<\/span> 食費/, "通常カードにカテゴリを表示");
+assert.match(getElement("csvPreviewList").innerHTML, /テスト1/, "通常カードにメモを表示");
+assert.match(getElement("csvPreviewList").innerHTML, />編集<\/button>/, "通常カードに編集ボタンを表示");
+assert.doesNotMatch(getElement("csvPreviewList").innerHTML, /class="csv-inline-editor"/, "通常表示では編集パネルを出さない");
 const firstCsvId = getElement("csvPreviewList").innerHTML.match(/data-csv-id="([^"]+)"/)?.[1];
 const csvActionTarget = (action, rowId = firstCsvId) => ({
   closest(selector) {
@@ -220,28 +224,51 @@ const csvActionTarget = (action, rowId = firstCsvId) => ({
     return null;
   }
 });
+const csvInteractiveTarget = {
+  closest(selector) {
+    if (selector === "[data-csv-id]") return { dataset: { csvId: firstCsvId } };
+    if (selector === "input, select, label, button") return {};
+    return null;
+  }
+};
+await getElement("csvPreviewList").dispatch("click", { target: csvInteractiveTarget });
+assert.doesNotMatch(getElement("csvPreviewList").innerHTML, /class="csv-inline-editor"/, "チェックボックス操作では編集パネルを誤展開しない");
 await getElement("csvPreviewList").dispatch("click", { target: csvActionTarget("toggle") });
-assert.match(getElement("csvPreviewList").innerHTML, /class="csv-edit-form"/, "選んだ1件だけ編集フォームを展開");
+assert.match(getElement("csvPreviewList").innerHTML, /<\/article>\s*<section class="csv-inline-editor"/, "編集パネルをカード直後の独立要素として表示");
 assert.match(getElement("csvPreviewList").innerHTML, /class="csv-date-input" type="text"/, "展開時の日付は固定形式で編集");
-const csvIds = [...getElement("csvPreviewList").innerHTML.matchAll(/data-csv-id="([^"]+)"/g)].map(match => match[1]);
+assert.match(getElement("csvPreviewList").innerHTML, /data-csv-field="amount"/, "編集パネルに金額入力を表示");
+assert.match(getElement("csvPreviewList").innerHTML, /data-csv-field="majorCategory"/, "編集パネルに大カテゴリ選択を表示");
+assert.match(getElement("csvPreviewList").innerHTML, /data-csv-field="subCategory"/, "編集パネルに小カテゴリ選択を表示");
+assert.match(getElement("csvPreviewList").innerHTML, /data-csv-field="memo"/, "編集パネルにメモ入力を表示");
+const csvIds = [...getElement("csvPreviewList").innerHTML.matchAll(/<article class="csv-preview-card[^>]*data-csv-id="([^"]+)"/g)].map(match => match[1]);
 await getElement("csvPreviewList").dispatch("click", { target: csvActionTarget("toggle", csvIds[1]) });
-assert.equal((getElement("csvPreviewList").innerHTML.match(/class="csv-edit-form"/g) || []).length, 1, "同時に開く編集フォームは1件だけ");
+assert.equal((getElement("csvPreviewList").innerHTML.match(/class="csv-inline-editor"/g) || []).length, 1, "同時に開く編集パネルは1件だけ");
+assert.match(getElement("csvPreviewList").innerHTML, new RegExp(`<section class="csv-inline-editor" data-csv-id="${csvIds[1]}`), "2件目のカード直下へ編集パネルを移動");
 const amountEditTarget = {
   dataset: { csvField: "amount" },
   value: "2000",
   closest(selector) { return selector === "[data-csv-id]" ? { dataset: { csvId: csvIds[1] } } : null; }
 };
 await getElement("csvPreviewList").dispatch("input", { target: amountEditTarget });
-assert.match(getElement("csvPreviewSummary").textContent, /¥2,980/, "金額編集をサマリーへ即時反映");
-assert.match(styleText, /\.csv-preview-card\s*\{[^}]*overflow:\s*hidden/s, "取り込みカードの横はみ出しを抑制");
-assert.match(styleText, /\.csv-edit-form \.csv-date-input\s*\{[^}]*max-width:\s*100%/s, "iPhoneの日付入力をカード幅以内に制限");
-assert.match(styleText, /\.csv-edit-form\s*\{[^}]*display:\s*grid[^}]*gap:/s, "展開フォームを縦並び表示");
+assert.match(getElement("csvPreviewSummary").textContent, /¥7,366/, "金額編集をサマリーへ即時反映");
+const memoEditTarget = {
+  dataset: { csvField: "memo" },
+  value: "テスト2更新",
+  closest(selector) { return selector === "[data-csv-id]" ? { dataset: { csvId: csvIds[1] } } : null; }
+};
+await getElement("csvPreviewList").dispatch("input", { target: memoEditTarget });
+await getElement("csvPreviewList").dispatch("click", { target: csvActionTarget("toggle", csvIds[1]) });
+assert.match(getElement("csvPreviewList").innerHTML, /¥2,000/, "編集後の金額を一覧へ反映");
+assert.match(getElement("csvPreviewList").innerHTML, /テスト2更新/, "編集後のメモを一覧へ反映");
+assert.match(styleText, /\.csv-preview-card\s*\{[^}]*overflow:\s*visible/s, "コンパクトカードの高さを制限しない");
+assert.match(styleText, /\.csv-inline-editor \.csv-date-input\s*\{[^}]*max-width:\s*100%/s, "iPhoneの日付入力をパネル幅以内に制限");
+assert.match(styleText, /\.csv-inline-editor\s*\{[^}]*display:\s*grid[^}]*width:\s*100%[^}]*gap:/s, "独立編集パネルを縦並び・全幅表示");
 assert.match(indexText, /style\.css\?v=2\.2/, "Safariに最新CSSを読み込ませる");
 assert.match(indexText, /app\.js\?v=2\.2/, "Safariに最新JavaScriptを読み込ませる");
 await getElement("importCsvButton").dispatch("click");
-assert.equal(readState().expenses.length, 3, "CSV取り込み");
-assert.equal(readState().expenses.filter(item => item.source === "receipt").length, 2, "選択したデータ元を保存");
-assert.equal(getElement("filterMonth").value, "2026-07", "取り込み後は一番新しい日付の月を表示");
+assert.equal(readState().expenses.length, 4, "CSV取り込み");
+assert.equal(readState().expenses.filter(item => item.source === "receipt").length, 3, "選択したデータ元を保存");
+assert.equal(getElement("filterMonth").value, "2026-06", "取り込み後は一番新しい日付の月を表示");
 assert.equal(getElement("drinkMonthRemaining").textContent, "¥5,000", "家飲み月残り");
 assert.equal(getElement("drinkWeekRemaining").textContent, "−¥367", "家飲み週目安と残り");
 
@@ -254,7 +281,7 @@ await getElement("transactionList").dispatch("click", {
   target: { closest: () => ({ dataset: { expenseId: dailyExpenseId } }) }
 });
 await getElement("detailDeleteButton").dispatch("click");
-assert.equal(readState().expenses.length, 2, "明細削除");
+assert.equal(readState().expenses.length, 3, "明細削除");
 
 getElement("csvPaste").value = [
   "date,amount,majorCategory,subCategory,memo",
@@ -402,7 +429,7 @@ assert.equal(getElement("allCategoryBudgetTotal").textContent, "¥382,300", "カ
 const backup = { app: "まいにち家計簿", schemaVersion: 1, data: readState() };
 const restoreFile = { text: async () => JSON.stringify(backup) };
 await getElement("restoreJsonFile").dispatch("change", { target: { files: [restoreFile], value: "" } });
-assert.equal(readState().expenses.length, 2, "JSON復元");
+assert.equal(readState().expenses.length, 3, "JSON復元");
 
 await getElement("deleteAllButton").dispatch("click");
 assert.equal(readState().expenses.length, 0, "全データ削除");
@@ -418,7 +445,7 @@ getElement("csvPaste").value = [
 await getElement("previewCsvButton").dispatch("click");
 assert.match(getElement("csvPreviewSummary").textContent, /4件を選択・合計 ¥2,404/, "指定CSV4件の件数と合計");
 assert.equal((getElement("csvPreviewList").innerHTML.match(/class="csv-preview-card/g) || []).length, 4, "指定CSVを4枚のコンパクトカードで表示");
-assert.doesNotMatch(getElement("csvPreviewList").innerHTML, /class="csv-edit-form"/, "指定CSVも初期状態は一覧確認表示");
+assert.doesNotMatch(getElement("csvPreviewList").innerHTML, /class="csv-inline-editor"/, "指定CSVも初期状態は一覧確認表示");
 await getElement("importCsvButton").dispatch("click");
 assert.equal(readState().expenses.length, 4, "指定CSV4件を登録");
 assert.equal(getElement("filterMonth").value, "2026-07", "指定CSV登録後は2026年7月を表示");
