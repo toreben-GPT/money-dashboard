@@ -7,7 +7,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <title>まいにち家計簿</title>
-  <link rel="stylesheet" href="style.css?v=2.3">
+  <link rel="stylesheet" href="style.css?v=2.4">
 </head>
 <body>
   <div class="app-shell">
@@ -162,10 +162,11 @@
             </div>
             <select id="expenseMajor" required aria-label="大カテゴリ"></select>
           </div>
-          <label class="field">
-            <span>小カテゴリ</span>
-            <select id="expenseSub" required></select>
-          </label>
+          <div class="field">
+            <span id="expenseSubLabel">小カテゴリ</span>
+            <input type="hidden" id="expenseSub">
+            <div class="subcategory-options" id="expenseSubOptions" role="group" aria-labelledby="expenseSubLabel"></div>
+          </div>
           <label class="field">
             <span>メモ <small>任意</small></span>
             <input id="expenseMemo" type="text" maxlength="80" placeholder="例：仕事中のランチ">
@@ -272,7 +273,7 @@
           <button class="danger-button" id="deleteAllButton" type="button">すべて削除</button>
         </article>
 
-        <p class="version-label">まいにち家計簿 v2.3</p>
+        <p class="version-label">まいにち家計簿 v2.4</p>
       </section>
     </main>
 
@@ -430,6 +431,6 @@
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-  <script src="app.js?v=2.3"></script>
+  <script src="app.js?v=2.4"></script>
 </body>
 </html>
