@@ -2,7 +2,7 @@
   "use strict";
 
   const STORAGE_KEY = "mainichiKakeibo_v1";
-  const APP_VERSION = 2.3;
+  const APP_VERSION = 2.4;
   const DONUT_COLORS = ["#207a52", "#e5a72f", "#4b79b9", "#df7650", "#7d65b3", "#43a5a1", "#b76386", "#7e9251"];
 
   const DEFAULT_CATEGORIES = [
@@ -68,6 +68,7 @@
     expenseAmount: $("#expenseAmount"),
     expenseMajor: $("#expenseMajor"),
     expenseSub: $("#expenseSub"),
+    expenseSubOptions: $("#expenseSubOptions"),
     expenseMemo: $("#expenseMemo"),
     expenseFormTitle: $("#expenseFormTitle"),
     saveExpenseButton: $("#saveExpenseButton"),
@@ -214,7 +215,11 @@
       window.setTimeout(() => els.expenseAmount.focus(), 120);
     });
 
-    els.expenseMajor.addEventListener("change", () => populateSubSelect(els.expenseMajor, els.expenseSub));
+    els.expenseMajor.addEventListener("change", () => populateExpenseSubChoices());
+    els.expenseSubOptions.addEventListener("click", event => {
+      const button = event.target.closest("[data-expense-sub]");
+      if (button) populateExpenseSubChoices(button.dataset.expenseSub);
+    });
     els.expenseDate.addEventListener("change", updatePickerDisplays);
     els.expenseForm.addEventListener("submit", handleExpenseSubmit);
     els.cancelEditButton.addEventListener("click", () => resetExpenseForm());
@@ -479,7 +484,23 @@
     const priorMajor = selectedMajor || els.expenseMajor.value;
     els.expenseMajor.innerHTML = state.categories.map(category => `<option value="${escapeAttr(category.name)}">${escapeHtml(category.name)}（${category.group}）</option>`).join("");
     if (state.categories.some(category => category.name === priorMajor)) els.expenseMajor.value = priorMajor;
-    populateSubSelect(els.expenseMajor, els.expenseSub, selectedSub);
+    populateExpenseSubChoices(selectedSub);
+  }
+
+  function populateExpenseSubChoices(selected = "") {
+    const category = state.categories.find(item => item.name === els.expenseMajor.value);
+    const subs = category?.subCategories || [];
+    const prior = selected || els.expenseSub.value;
+    const activeSub = subs.includes(prior) ? prior : (subs[0] || "");
+    els.expenseSub.value = activeSub;
+    els.expenseSubOptions.innerHTML = subs.length
+      ? subs.map(sub => `
+        <button class="subcategory-option${sub === activeSub ? " is-selected" : ""}" type="button"
+          aria-pressed="${sub === activeSub}" data-expense-sub="${escapeAttr(sub)}">
+          <span>${escapeHtml(sub)}</span>
+          <span class="subcategory-check" aria-hidden="true">✓</span>
+        </button>`).join("")
+      : `<p class="subcategory-empty">設定画面で小カテゴリを追加してください。</p>`;
   }
 
   function populateSubSelect(majorSelect, subSelect, selected = "") {
@@ -793,7 +814,7 @@
     if (context?.type === "expense") {
       applyCategoryToExpenseForm(result.category.name, result.name);
       navigate("input", false);
-      window.setTimeout(() => els.expenseSub.focus(), 100);
+      window.setTimeout(focusSelectedExpenseSub, 100);
     }
     if (context?.type === "csv") {
       applyCategoryToCsvRow(context.rowId, result.category.name, result.name);
@@ -828,6 +849,10 @@
 
   function applyCategoryToExpenseForm(majorCategory, subCategory) {
     populateExpenseCategories(majorCategory, subCategory);
+  }
+
+  function focusSelectedExpenseSub() {
+    els.expenseSubOptions.querySelector(".subcategory-option.is-selected")?.focus();
   }
 
   function applyCategoryToCsvRow(rowId, majorCategory, subCategory) {
@@ -893,7 +918,7 @@
     if (!id && context?.type === "expense") {
       applyCategoryToExpenseForm(name, selectedSub);
       navigate("input", false);
-      window.setTimeout(() => els.expenseSub.focus(), 100);
+      window.setTimeout(focusSelectedExpenseSub, 100);
     }
     if (!id && context?.type === "csv") {
       applyCategoryToCsvRow(context.rowId, name, selectedSub);
