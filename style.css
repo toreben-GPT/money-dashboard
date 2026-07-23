@@ -653,6 +653,76 @@ main {
   font-weight: 500;
 }
 
+.subcategory-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  min-width: 0;
+}
+
+.subcategory-option {
+  display: flex;
+  min-width: 0;
+  min-height: 48px;
+  padding: 10px 12px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border: 1px solid #ced8d1;
+  border-radius: 12px;
+  background: #fff;
+  color: #465149;
+  font-size: 0.88rem;
+  font-weight: 700;
+  line-height: 1.25;
+  text-align: left;
+  touch-action: manipulation;
+}
+
+.subcategory-option > span:first-child {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.subcategory-option.is-selected {
+  border-color: var(--green);
+  background: var(--green-soft);
+  color: var(--green-dark);
+  box-shadow: inset 0 0 0 1px var(--green);
+}
+
+.subcategory-option:focus-visible {
+  outline: 3px solid rgba(32, 122, 82, 0.2);
+  outline-offset: 2px;
+}
+
+.subcategory-check {
+  display: grid;
+  width: 20px;
+  height: 20px;
+  flex: 0 0 20px;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--green);
+  color: #fff;
+  font-size: 0.72rem;
+  opacity: 0;
+}
+
+.subcategory-option.is-selected .subcategory-check {
+  opacity: 1;
+}
+
+.subcategory-empty {
+  grid-column: 1 / -1;
+  margin: 0;
+  padding: 12px;
+  border-radius: 12px;
+  background: var(--surface-soft);
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
 input,
 select,
 textarea {
