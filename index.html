@@ -7,7 +7,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <title>まいにち家計簿</title>
-  <link rel="stylesheet" href="style.css?v=2.4">
+  <link rel="stylesheet" href="style.css?v=2.5">
 </head>
 <body>
   <div class="app-shell">
@@ -81,7 +81,7 @@
           <div class="section-heading outside">
             <div>
               <p class="mini-kicker">今月の状況</p>
-              <h2 id="categoryProgressTitle">カテゴリ別 予算進捗</h2>
+              <h2 id="categoryProgressTitle">カテゴリ別 支出・予算進捗</h2>
             </div>
           </div>
           <div class="progress-list" id="categoryProgressList"></div>
@@ -230,7 +230,7 @@
             </div>
             <button class="small-button" id="addCategoryButton" type="button">＋ 追加</button>
           </div>
-          <p class="budget-total-note">現在設定している大カテゴリ月予算の合計</p>
+          <p class="budget-total-note">生活費・固定費に設定している月予算の合計（特別な支出は予算対象外）</p>
           <div class="budget-total-grid" aria-label="大カテゴリ予算の合計">
             <div><span>生活費合計</span><strong id="livingCategoryBudgetTotal">¥0</strong></div>
             <div><span>固定費合計</span><strong id="fixedCategoryBudgetTotal">¥0</strong></div>
@@ -273,7 +273,7 @@
           <button class="danger-button" id="deleteAllButton" type="button">すべて削除</button>
         </article>
 
-        <p class="version-label">まいにち家計簿 v2.4</p>
+        <p class="version-label">まいにち家計簿 v2.5</p>
       </section>
     </main>
 
@@ -322,8 +322,9 @@
         <input id="categoryId" type="hidden">
         <label class="field"><span>大カテゴリ名</span><input id="categoryName" type="text" maxlength="30" required></label>
         <label class="field" id="categoryFirstSubField"><span>最初の小カテゴリ名</span><input id="categoryFirstSub" type="text" maxlength="30"></label>
-        <label class="field"><span>グループ</span><select id="categoryGroup"><option value="固定費">固定費</option><option value="生活費">生活費</option></select></label>
-        <label class="field"><span>月予算</span><div class="suffix-input"><input id="categoryBudget" type="number" min="0" step="100"><span>円</span></div></label>
+        <label class="field"><span>グループ</span><select id="categoryGroup"><option value="生活費">生活費</option><option value="固定費">固定費</option><option value="特別な支出">特別な支出</option></select></label>
+        <label class="field" id="categoryBudgetField"><span>月予算</span><div class="suffix-input"><input id="categoryBudget" type="number" min="0" step="100"><span>円</span></div></label>
+        <p class="special-budget-note is-hidden" id="specialBudgetNote">特別な支出には予算を設定せず、今月の支出額だけを表示します。</p>
         <button class="primary-button" type="submit">保存</button>
       </form>
     </div>
@@ -431,6 +432,6 @@
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-  <script src="app.js?v=2.4"></script>
+  <script src="app.js?v=2.5"></script>
 </body>
 </html>
