@@ -384,6 +384,73 @@ main {
   font-size: 0.73rem;
 }
 
+.mini-progress {
+  margin-top: 13px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.mini-progress-head,
+.mini-progress-values {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.mini-progress-head strong {
+  min-width: 0;
+  font-size: 0.77rem;
+}
+
+.mini-progress-head span,
+.mini-progress-values {
+  color: var(--muted);
+  font-size: 0.66rem;
+}
+
+.mini-progress-values {
+  flex-wrap: wrap;
+  margin-top: 7px;
+}
+
+.mini-progress-values b {
+  color: var(--ink);
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.mini-progress-values b.is-negative {
+  color: var(--red);
+}
+
+.progress-track.mini {
+  height: 5px;
+  margin-top: 7px;
+}
+
+.mini-progress p,
+.special-spending-note {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 0.64rem;
+}
+
+.special-spending-card {
+  border-color: #dfe4e1;
+  background: #fafbf9;
+}
+
+.special-budget-note {
+  margin: -2px 0 0;
+  padding: 11px 12px;
+  border-radius: 12px;
+  background: #f3f5f4;
+  color: var(--muted);
+  font-size: 0.75rem;
+  line-height: 1.55;
+}
+
 .status-label {
   display: inline-flex;
   align-items: center;
