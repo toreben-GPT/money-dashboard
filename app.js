@@ -2,7 +2,7 @@
   "use strict";
 
   const STORAGE_KEY = "mainichiKakeibo_v1";
-  const APP_VERSION = 2.5;
+  const APP_VERSION = 3;
   const CATEGORY_GROUPS = ["生活費", "固定費", "特別な支出"];
   const DONUT_COLORS = ["#207a52", "#e5a72f", "#4b79b9", "#df7650", "#7d65b3", "#43a5a1", "#b76386", "#7e9251"];
 
@@ -420,15 +420,14 @@
         }
         let miniProgress = "";
         if (category.name === "食費") {
-          const includedSubs = new Set(["食費", "仕事中食費"]);
           const monthSpent = sum(monthExpenses.filter(expense =>
-            expense.majorCategory === category.name && includedSubs.has(expense.subCategory)
+            expense.majorCategory === category.name && expense.subCategory !== "家飲み"
           ).map(expense => expense.amount));
           const weekSpent = sum(weekExpenses.filter(expense =>
-            expense.majorCategory === category.name && includedSubs.has(expense.subCategory)
+            expense.majorCategory === category.name && expense.subCategory !== "家飲み"
           ).map(expense => expense.amount));
           const budget = Math.max(0, category.budget - state.budgets.homeDrinking);
-          miniProgress = miniProgressHtml("一般食費＋仕事中食費", monthSpent, weekSpent, budget, daysInMonth);
+          miniProgress = miniProgressHtml("家飲み以外の食費", monthSpent, weekSpent, budget, daysInMonth);
         }
         if (category.name === "日用品") {
           const monthSpent = sum(monthExpenses.filter(expense =>
