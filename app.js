@@ -2,7 +2,8 @@
   "use strict";
 
   const STORAGE_KEY = "mainichiKakeibo_v1";
-  const APP_VERSION = 2.4;
+  const APP_VERSION = 2.5;
+  const CATEGORY_GROUPS = ["生活費", "固定費", "特別な支出"];
   const DONUT_COLORS = ["#207a52", "#e5a72f", "#4b79b9", "#df7650", "#7d65b3", "#43a5a1", "#b76386", "#7e9251"];
 
   const DEFAULT_CATEGORIES = [
@@ -134,18 +135,26 @@
     const defaults = createDefaultState();
     if (!raw || typeof raw !== "object") return defaults;
 
+    const storedVersion = Number(raw.version) || 0;
     const categories = Array.isArray(raw.categories)
       ? raw.categories
           .filter(item => item && typeof item.name === "string")
-          .map(item => ({
-            id: String(item.id || uid("cat")),
-            name: String(item.name).trim(),
-            group: item.group === "固定費" ? "固定費" : "生活費",
-            budget: nonNegativeNumber(item.budget),
-            subCategories: Array.isArray(item.subCategories)
-              ? [...new Set(item.subCategories.map(String).map(value => value.trim()).filter(Boolean))]
-              : []
-          }))
+          .map(item => {
+            const name = String(item.name).trim();
+            const requestedGroup = String(item.group || "");
+            const group = storedVersion < APP_VERSION && name === "ふるさと納税"
+              ? "特別な支出"
+              : (CATEGORY_GROUPS.includes(requestedGroup) ? requestedGroup : "生活費");
+            return {
+              id: String(item.id || uid("cat")),
+              name,
+              group,
+              budget: group === "特別な支出" ? 0 : nonNegativeNumber(item.budget),
+              subCategories: Array.isArray(item.subCategories)
+                ? [...new Set(item.subCategories.map(String).map(value => value.trim()).filter(Boolean))]
+                : []
+            };
+          })
       : defaults.categories;
 
     return {
@@ -281,6 +290,7 @@
     els.budgetForm.addEventListener("submit", saveBudgets);
     $("#addCategoryButton").addEventListener("click", () => openCategoryModal());
     $("#categoryForm").addEventListener("submit", saveCategoryFromModal);
+    $("#categoryGroup").addEventListener("change", syncCategoryBudgetField);
     $("#categoryChoiceModal").addEventListener("click", handleCategoryChoice);
     $("#subCategoryForm").addEventListener("submit", saveSubCategoryFromModal);
     els.categoryEditorList.addEventListener("click", handleCategoryAction);
@@ -391,28 +401,51 @@
     setSignedAmount(els.drinkMonthRemaining, drinkMonthRemaining);
     els.drinkMonthDetail.textContent = `使用 ${yen(drinkMonthSpent)}・月予算 ${yen(state.budgets.homeDrinking)}`;
 
-    renderCategoryProgress(monthExpenses);
+    renderCategoryProgress(monthExpenses, weekExpenses, daysInMonth);
     renderDonut(monthExpenses, livingCategories);
     renderRecent();
   }
 
-  function renderCategoryProgress(monthExpenses) {
+  function renderCategoryProgress(monthExpenses, weekExpenses, daysInMonth) {
     const blocks = [];
-    ["生活費", "固定費"].forEach(group => {
+    CATEGORY_GROUPS.forEach(group => {
+      const categories = state.categories.filter(category => category.group === group);
+      if (!categories.length) return;
       blocks.push(`<p class="progress-group-title">${group}</p>`);
-      state.categories.filter(category => category.group === group).forEach(category => {
+      categories.forEach(category => {
         const spent = sum(monthExpenses.filter(expense => expense.majorCategory === category.name).map(expense => expense.amount));
-        blocks.push(progressCardHtml(category.name, spent, category.budget));
+        if (group === "特別な支出") {
+          blocks.push(specialSpendingCardHtml(category.name, spent));
+          return;
+        }
+        let miniProgress = "";
+        if (category.name === "食費") {
+          const includedSubs = new Set(["食費", "仕事中食費"]);
+          const monthSpent = sum(monthExpenses.filter(expense =>
+            expense.majorCategory === category.name && includedSubs.has(expense.subCategory)
+          ).map(expense => expense.amount));
+          const weekSpent = sum(weekExpenses.filter(expense =>
+            expense.majorCategory === category.name && includedSubs.has(expense.subCategory)
+          ).map(expense => expense.amount));
+          const budget = Math.max(0, category.budget - state.budgets.homeDrinking);
+          miniProgress = miniProgressHtml("一般食費＋仕事中食費", monthSpent, weekSpent, budget, daysInMonth);
+        }
+        if (category.name === "日用品") {
+          const monthSpent = sum(monthExpenses.filter(expense =>
+            expense.majorCategory === category.name && expense.subCategory === "タバコ"
+          ).map(expense => expense.amount));
+          const weekSpent = sum(weekExpenses.filter(expense =>
+            expense.majorCategory === category.name && expense.subCategory === "タバコ"
+          ).map(expense => expense.amount));
+          miniProgress = miniProgressHtml("タバコ", monthSpent, weekSpent, state.budgets.tobacco, daysInMonth);
+        }
+        blocks.push(progressCardHtml(category.name, spent, category.budget, miniProgress));
       });
-      if (group === "生活費") {
-        const tobaccoSpent = sum(monthExpenses.filter(expense => expense.subCategory === "タバコ").map(expense => expense.amount));
-        blocks.push(progressCardHtml("タバコ（小カテゴリ）", tobaccoSpent, state.budgets.tobacco));
-      }
     });
     els.categoryProgressList.innerHTML = blocks.join("");
   }
 
-  function progressCardHtml(name, spent, budget) {
+  function progressCardHtml(name, spent, budget, miniProgress = "") {
     const rate = percent(spent, budget);
     const status = progressStatus(rate, budget, spent);
     const remaining = budget - spent;
@@ -428,6 +461,39 @@
           <span>残り ${yen(remaining)}</span>
           <span class="status-label ${status.labelClass}">${status.label} ${rateText}</span>
         </div>
+        ${miniProgress}
+      </article>`;
+  }
+
+  function miniProgressHtml(name, monthSpent, weekSpent, budget, daysInMonth) {
+    const rate = percent(monthSpent, budget);
+    const status = progressStatus(rate, budget, monthSpent);
+    const monthRemaining = budget - monthSpent;
+    const weekBudget = Math.round(budget / daysInMonth * 7);
+    const weekRemaining = weekBudget - weekSpent;
+    return `
+      <div class="mini-progress">
+        <div class="mini-progress-head">
+          <strong>${escapeHtml(name)}</strong>
+          <span>月予算 ${yen(budget)}</span>
+        </div>
+        <div class="mini-progress-values">
+          <span>今月残り <b class="${monthRemaining < 0 ? "is-negative" : ""}">${yen(monthRemaining)}</b></span>
+          <span>今週残り <b class="${weekRemaining < 0 ? "is-negative" : ""}">${yen(weekRemaining)}</b></span>
+        </div>
+        <div class="progress-track mini" aria-hidden="true"><div class="progress-fill ${status.className}" style="width:${Math.min(Math.max(rate, monthSpent > 0 && budget === 0 ? 100 : 0), 100)}%"></div></div>
+        <p>今週使用 ${yen(weekSpent)}・週目安 ${yen(weekBudget)}</p>
+      </div>`;
+  }
+
+  function specialSpendingCardHtml(name, spent) {
+    return `
+      <article class="progress-card special-spending-card">
+        <div class="progress-card-head">
+          <h3>${escapeHtml(name)}</h3>
+          <strong>${yen(spent)}</strong>
+        </div>
+        <p class="special-spending-note">今月の支出・予算対象外</p>
       </article>`;
   }
 
@@ -735,7 +801,7 @@
         <div class="category-main-row">
           <div>
             <h3>${escapeHtml(category.name)}</h3>
-            <p>${category.group}・月予算 ${yen(category.budget)}</p>
+            <p>${category.group === "特別な支出" ? "特別な支出・予算なし" : `${category.group}・月予算 ${yen(category.budget)}`}</p>
           </div>
           <div class="inline-actions">
             <button class="mini-action" type="button" data-category-action="edit">編集</button>
@@ -835,11 +901,12 @@
   }
 
   function createCategoryWithFirstSub({ name, firstSubCategory, group, budget }) {
+    const normalizedGroup = CATEGORY_GROUPS.includes(group) ? group : "生活費";
     const category = {
       id: uid("cat"),
       name: String(name).trim(),
-      group: group === "固定費" ? "固定費" : "生活費",
-      budget: nonNegativeNumber(budget),
+      group: normalizedGroup,
+      budget: normalizedGroup === "特別な支出" ? 0 : nonNegativeNumber(budget),
       subCategories: [String(firstSubCategory).trim()]
     };
     state.categories.push(category);
@@ -874,6 +941,7 @@
     $("#categoryFirstSubField").classList.toggle("is-hidden", isEditing);
     $("#categoryGroup").value = category?.group || defaults.group || "生活費";
     $("#categoryBudget").value = category?.budget ?? defaults.budget ?? 0;
+    syncCategoryBudgetField();
     openModal("categoryModal");
     window.setTimeout(() => $("#categoryName").focus(), 100);
   }
@@ -896,8 +964,8 @@
       if (!category) return;
       const oldName = category.name;
       category.name = name;
-      category.group = $("#categoryGroup").value;
-      category.budget = nonNegativeNumber($("#categoryBudget").value);
+      category.group = CATEGORY_GROUPS.includes($("#categoryGroup").value) ? $("#categoryGroup").value : "生活費";
+      category.budget = category.group === "特別な支出" ? 0 : nonNegativeNumber($("#categoryBudget").value);
       selectedSub = category.subCategories[0] || "";
       if (oldName !== name) {
         state.expenses.forEach(expense => { if (expense.majorCategory === oldName) expense.majorCategory = name; });
@@ -927,6 +995,14 @@
     }
     categoryReturnContext = null;
     showToast("カテゴリを保存しました");
+  }
+
+  function syncCategoryBudgetField() {
+    const isSpecial = $("#categoryGroup").value === "特別な支出";
+    $("#categoryBudgetField").classList.toggle("is-hidden", isSpecial);
+    $("#specialBudgetNote").classList.toggle("is-hidden", !isSpecial);
+    $("#categoryBudget").disabled = isSpecial;
+    if (isSpecial) $("#categoryBudget").value = "0";
   }
 
   function handleCategoryAction(event) {
@@ -1594,18 +1670,15 @@
     return categories
       .map((category, index) => ({ category, index }))
       .sort((left, right) => {
+        const leftGroupRank = CATEGORY_GROUPS.indexOf(left.category.group);
+        const rightGroupRank = CATEGORY_GROUPS.indexOf(right.category.group);
+        if (leftGroupRank !== rightGroupRank) return leftGroupRank - rightGroupRank;
         const leftRank = CATEGORY_INPUT_ORDER.indexOf(left.category.name);
         const rightRank = CATEGORY_INPUT_ORDER.indexOf(right.category.name);
         const leftKnown = leftRank >= 0;
         const rightKnown = rightRank >= 0;
         if (leftKnown && rightKnown) return leftRank - rightRank;
-        if (leftKnown !== rightKnown) {
-          const known = leftKnown ? left : right;
-          const custom = leftKnown ? right : left;
-          const customBeforeFixed = custom.category.group === "生活費" && known.category.group === "固定費";
-          return (leftKnown === customBeforeFixed) ? 1 : -1;
-        }
-        if (left.category.group !== right.category.group) return left.category.group === "生活費" ? -1 : 1;
+        if (leftKnown !== rightKnown) return leftKnown ? -1 : 1;
         return left.index - right.index;
       })
       .map(item => item.category);
