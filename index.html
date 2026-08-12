@@ -7,7 +7,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <title>まいにち家計簿</title>
-  <link rel="stylesheet" href="style.css?v=3">
+  <link rel="stylesheet" href="style.css?v=3.1">
 </head>
 <body>
   <div class="app-shell">
@@ -258,7 +258,7 @@
             </div>
           </div>
           <div class="action-list">
-            <button class="action-row" id="exportCsvButton" type="button"><span><strong>CSV出力</strong><small>支出明細を表形式で保存</small></span><span>›</span></button>
+            <button class="action-row" id="exportCsvButton" type="button"><span><strong>CSV出力</strong><small>対象月または全期間を、予算付きで保存</small></span><span>›</span></button>
             <button class="action-row" id="exportJsonButton" type="button"><span><strong>JSONバックアップ</strong><small>設定を含む全データを保存</small></span><span>›</span></button>
             <button class="action-row" id="restoreJsonButton" type="button"><span><strong>JSON復元</strong><small>バックアップから全データを上書き</small></span><span>›</span></button>
             <input class="sr-only" id="restoreJsonFile" type="file" accept="application/json,.json">
@@ -273,7 +273,7 @@
           <button class="danger-button" id="deleteAllButton" type="button">すべて削除</button>
         </article>
 
-        <p class="version-label">まいにち家計簿 v3</p>
+        <p class="version-label">まいにち家計簿 v3.1</p>
       </section>
     </main>
 
@@ -430,8 +430,35 @@
     </div>
   </div>
 
+  <div class="modal-backdrop is-hidden" id="exportCsvModal" role="dialog" aria-modal="true" aria-labelledby="exportCsvTitle">
+    <div class="modal-card bottom-sheet">
+      <button class="modal-close" type="button" data-close-modal="exportCsvModal" aria-label="閉じる">×</button>
+      <p class="mini-kicker">予算と明細をひとつのファイルに</p>
+      <h2 id="exportCsvTitle">CSV出力</h2>
+      <form id="exportCsvForm" class="stack-form csv-export-form">
+        <fieldset class="csv-export-options">
+          <legend>出力範囲</legend>
+          <label class="csv-export-option">
+            <input id="exportCsvCurrent" type="radio" name="exportCsvRange" value="month" checked>
+            <span><strong>対象月</strong><small>選んだ月の明細と現在の月予算</small></span>
+          </label>
+          <label class="csv-export-option">
+            <input id="exportCsvAll" type="radio" name="exportCsvRange" value="all">
+            <span><strong>すべて</strong><small>全期間の明細と現在の月予算</small></span>
+          </label>
+        </fieldset>
+        <label class="field" id="exportCsvMonthField">
+          <span>対象月</span>
+          <input id="exportCsvMonth" type="month" required>
+        </label>
+        <p class="csv-export-summary" id="exportCsvSummary"></p>
+        <button class="primary-button" type="submit">CSVを保存</button>
+      </form>
+    </div>
+  </div>
+
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-  <script src="app.js?v=3"></script>
+  <script src="app.js?v=3.1"></script>
 </body>
 </html>
