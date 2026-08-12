@@ -115,7 +115,7 @@ const styleText = await readFile(new URL("../style.css", import.meta.url), "utf8
 const indexText = await readFile(new URL("../index.html", import.meta.url), "utf8");
 
 assert.equal(readState().categories.length, 12, "初期カテゴリ数");
-assert.equal(readState().version, 3, "保存データをv3として正規化");
+assert.equal(readState().version, 3.1, "保存データをv3.1として正規化");
 assert.deepEqual(readState().categories.slice(0, 3).map(item => item.name), ["食費", "交際費", "日用品"], "よく使うカテゴリを先頭に表示");
 assert.ok(readState().categories.slice(-4).every(item => item.group === "固定費"), "固定費カテゴリを下に表示");
 assert.equal(readState().budgets.living, 150000, "生活費初期予算");
@@ -274,8 +274,10 @@ assert.match(getElement("csvPreviewList").innerHTML, /テスト2更新/, "編集
 assert.match(styleText, /\.csv-preview-card\s*\{[^}]*overflow:\s*visible/s, "コンパクトカードの高さを制限しない");
 assert.match(styleText, /\.csv-inline-editor \.csv-date-input\s*\{[^}]*max-width:\s*100%/s, "iPhoneの日付入力をパネル幅以内に制限");
 assert.match(styleText, /\.csv-inline-editor\s*\{[^}]*display:\s*grid[^}]*width:\s*100%[^}]*gap:/s, "独立編集パネルを縦並び・全幅表示");
-assert.match(indexText, /style\.css\?v=3/, "Safariに最新CSSを読み込ませる");
-assert.match(indexText, /app\.js\?v=3/, "Safariに最新JavaScriptを読み込ませる");
+assert.match(indexText, /style\.css\?v=3\.1/, "Safariに最新CSSを読み込ませる");
+assert.match(indexText, /app\.js\?v=3\.1/, "Safariに最新JavaScriptを読み込ませる");
+assert.match(styleText, /\.quick-list\s*\{[^}]*display:\s*grid/s, "クイック入力を横スクロールではなく折り返し表示");
+assert.match(styleText, /\.transaction-category,[\s\S]*?white-space:\s*normal/s, "長い明細文をカード内で折り返す");
 assert.match(styleText, /\.mini-progress\s*\{[^}]*border-top:/s, "親カード内でミニ進捗を区切って表示");
 await getElement("importCsvButton").dispatch("click");
 assert.equal(readState().expenses.length, 4, "CSV取り込み");
@@ -283,6 +285,15 @@ assert.equal(readState().expenses.filter(item => item.source === "receipt").leng
 assert.equal(getElement("filterMonth").value, "2026-06", "取り込み後は一番新しい日付の月を表示");
 assert.equal(getElement("drinkMonthRemaining").textContent, "¥5,000", "家飲み月残り");
 assert.equal(getElement("drinkWeekRemaining").textContent, "−¥367", "家飲み週目安と残り");
+
+getElement("csvPaste").value = [
+  "recordType,period,date,amount,majorCategory,subCategory,memo,createdAt,source,budgetGroup,budgetName,monthlyBudget",
+  "budget,2026-06,,,,,,,,全体予算,生活費,150000",
+  "expense,2026-06,2026-06-30,800,食費,食費,新形式テスト,,manual,,,"
+].join("\n");
+await getElement("previewCsvButton").dispatch("click");
+assert.equal((getElement("csvPreviewList").innerHTML.match(/class="csv-preview-card/g) || []).length, 1, "予算付きCSVの予算行を明細として扱わない");
+assert.match(getElement("csvPreviewList").innerHTML, /新形式テスト/, "予算付きCSVの明細行は従来どおり取り込み確認できる");
 
 getElement("filterMajor").value = "日用品";
 await getElement("filterMajor").dispatch("change");
@@ -339,8 +350,23 @@ assert.ok(readState().categories.some(item => item.name === "車関係" && item.
 assert.doesNotMatch(getElement("csvPreviewList").innerHTML, /大カテゴリを確認/, "大カテゴリ追加後にエラー解消");
 
 await getElement("exportCsvButton").dispatch("click");
+assert.equal(getElement("exportCsvMonth").value, "2026-06", "CSV対象月は表示中の月を初期選択");
+assert.match(getElement("exportCsvSummary").textContent, /2026年6月の明細/, "CSV対象月の件数案内");
+await getElement("exportCsvForm").dispatch("submit");
+const exportedCsv = await (await fetch(downloads[0].href)).text();
+assert.match(exportedCsv, /recordType,period,date,amount/, "CSVに行種別と対象期間を出力");
+assert.match(exportedCsv, /budget,2026-06[\s\S]*全体予算,生活費,150000/, "CSVに生活費予算を同梱");
+assert.match(exportedCsv, /expense,2026-06,2026-06-27,1200/, "対象月の明細をCSVへ出力");
+getElement("exportCsvAll").checked = true;
+getElement("exportCsvCurrent").checked = false;
+await getElement("exportCsvButton").dispatch("click");
+getElement("exportCsvAll").checked = true;
+getElement("exportCsvCurrent").checked = false;
+await getElement("exportCsvAll").dispatch("change");
+assert.equal(getElement("exportCsvMonth").disabled, true, "全期間選択時は月選択を無効化");
+await getElement("exportCsvForm").dispatch("submit");
 await getElement("exportJsonButton").dispatch("click");
-assert.equal(downloads.length, 2, "CSV・JSON出力");
+assert.equal(downloads.length, 3, "対象月CSV・全期間CSV・JSON出力");
 
 getElement("livingBudgetInput").value = "160000";
 getElement("drinkBudgetInput").value = "8000";
@@ -593,4 +619,4 @@ getElement("expenseSub").value = "食費";
 await getElement("expenseForm").dispatch("submit");
 assert.equal(getElement("todayAvailable").textContent, "¥32,500", "対象生活費の支出だけ日額から差し引く");
 
-console.log("SMOKE TEST OK: v3 家飲み以外の全食費集計・カード内ミニ進捗・予算なし特別支出・既存データ移行・既存機能");
+console.log("SMOKE TEST OK: v3.1 CSV期間選択・予算同梱・長文折り返し・既存機能");
