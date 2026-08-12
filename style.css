@@ -365,11 +365,10 @@ main {
 }
 
 .progress-card-head h3 {
-  overflow: hidden;
+  min-width: 0;
   margin: 0;
   font-size: 0.94rem;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 
 .progress-card-head strong {
@@ -581,10 +580,9 @@ main {
 
 .transaction-category,
 .transaction-memo {
-  overflow: hidden;
   margin: 0;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 
 .transaction-category {
@@ -853,8 +851,26 @@ textarea {
 
 textarea {
   min-height: 138px;
+  overflow-wrap: anywhere;
   resize: vertical;
   line-height: 1.45;
+  white-space: pre-wrap;
+}
+
+input[type="date"],
+input[type="time"],
+input[type="month"] {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+}
+
+@supports (width: -webkit-fill-available) {
+  input[type="date"],
+  input[type="time"],
+  input[type="month"] {
+    width: -webkit-fill-available;
+  }
 }
 
 input:focus,
@@ -949,15 +965,12 @@ textarea:focus {
 }
 
 .quick-list {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr));
   gap: 8px;
-  overflow-x: auto;
   margin-top: 14px;
   padding: 1px 0 4px;
-  scrollbar-width: none;
 }
-
-.quick-list::-webkit-scrollbar { display: none; }
 
 .import-launch {
   display: grid;
@@ -1006,7 +1019,8 @@ textarea:focus {
 }
 
 .quick-chip {
-  flex: 0 0 auto;
+  width: 100%;
+  min-width: 0;
   min-height: 58px;
   padding: 8px 13px;
   border: 1px solid #cde2d5;
@@ -1022,11 +1036,10 @@ textarea:focus {
 }
 
 .quick-chip strong {
-  max-width: 138px;
-  overflow: hidden;
+  min-width: 0;
   font-size: 0.78rem;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 
 .quick-chip span {
@@ -1091,11 +1104,10 @@ textarea:focus {
 }
 
 .category-main-row h3 {
-  overflow: hidden;
+  min-width: 0;
   margin: 0;
   font-size: 0.9rem;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 
 .category-main-row p {
@@ -1142,6 +1154,11 @@ textarea:focus {
   font-size: 0.8rem;
 }
 
+.sub-row > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
 .sub-row:last-child { border-bottom: 0; }
 
 .sub-actions {
@@ -1186,9 +1203,9 @@ textarea:focus {
 .settings-quick-row strong,
 .settings-quick-row small {
   display: block;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 
 .settings-quick-row strong { font-size: 0.84rem; }
@@ -1221,6 +1238,7 @@ textarea:focus {
 .action-row strong { font-size: 0.84rem; }
 .action-row small { margin-top: 2px; color: var(--muted); font-size: 0.69rem; }
 .action-row > span:last-child { color: var(--muted); font-size: 1.5rem; }
+.action-row > span:first-child { min-width: 0; overflow-wrap: anywhere; }
 
 .danger-card {
   display: flex;
@@ -1431,6 +1449,67 @@ textarea:focus {
 .detail-row span { color: var(--muted); }
 .detail-row strong { max-width: 70%; text-align: right; overflow-wrap: anywhere; }
 
+.csv-export-form {
+  margin-top: 18px;
+}
+
+.csv-export-options {
+  display: grid;
+  min-width: 0;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.csv-export-options legend {
+  margin-bottom: 7px;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.csv-export-option {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr);
+  gap: 10px;
+  min-height: 58px;
+  padding: 10px 12px;
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  background: var(--surface-soft);
+}
+
+.csv-export-option input {
+  width: 22px;
+  min-width: 22px;
+  min-height: 22px;
+  margin: 0;
+  padding: 0;
+  accent-color: var(--green);
+}
+
+.csv-export-option strong,
+.csv-export-option small {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.csv-export-option strong { font-size: 0.86rem; }
+.csv-export-option small { margin-top: 2px; color: var(--muted); font-size: 0.72rem; }
+
+#exportCsvMonthField.is-disabled { opacity: 0.48; }
+
+.csv-export-summary {
+  margin: 2px 0 0;
+  padding: 11px 12px;
+  border-radius: 11px;
+  background: var(--green-soft);
+  color: var(--green-dark);
+  font-size: 0.76rem;
+  overflow-wrap: anywhere;
+}
+
 .full-modal {
   display: flex;
   width: min(100%, 680px);
@@ -1455,6 +1534,10 @@ textarea:focus {
   border-bottom: 1px solid var(--line);
 }
 
+.modal-sticky-head > div {
+  min-width: 0;
+}
+
 .modal-sticky-head .support-text {
   margin: 4px 0 0;
   white-space: pre-line;
@@ -1469,7 +1552,9 @@ textarea:focus {
 
 .csv-preview-list {
   display: grid;
+  min-width: 0;
   min-height: 0;
+  align-content: start;
   gap: 10px;
   flex: 1;
   overflow-y: auto;
@@ -1751,6 +1836,7 @@ textarea:focus {
   color: #fff;
   font-size: 0.82rem;
   font-weight: 650;
+  overflow-wrap: anywhere;
   opacity: 0;
   pointer-events: none;
   text-align: center;
