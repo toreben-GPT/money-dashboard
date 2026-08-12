@@ -2,7 +2,7 @@
   "use strict";
 
   const STORAGE_KEY = "mainichiKakeibo_v1";
-  const APP_VERSION = 3;
+  const APP_VERSION = 3.1;
   const CATEGORY_GROUPS = ["生活費", "固定費", "特別な支出"];
   const DONUT_COLORS = ["#207a52", "#e5a72f", "#4b79b9", "#df7650", "#7d65b3", "#43a5a1", "#b76386", "#7e9251"];
 
@@ -304,7 +304,11 @@
     els.csvPreviewList.addEventListener("change", handleCsvPreviewChange);
     els.csvPreviewList.addEventListener("input", handleCsvPreviewChange);
     els.importCsvButton.addEventListener("click", importCsvRows);
-    $("#exportCsvButton").addEventListener("click", exportCsv);
+    $("#exportCsvButton").addEventListener("click", openExportCsvModal);
+    $("#exportCsvCurrent").addEventListener("change", syncExportCsvControls);
+    $("#exportCsvAll").addEventListener("change", syncExportCsvControls);
+    $("#exportCsvMonth").addEventListener("change", syncExportCsvControls);
+    $("#exportCsvForm").addEventListener("submit", exportCsv);
     $("#exportJsonButton").addEventListener("click", exportJson);
     $("#restoreJsonButton").addEventListener("click", () => $("#restoreJsonFile").click());
     $("#restoreJsonFile").addEventListener("change", restoreJson);
@@ -1170,6 +1174,7 @@
     const first = records[0].map(value => String(value).trim().toLowerCase());
     const hasHeader = first.includes("date") && first.includes("amount");
     let indexes = { date: 0, amount: 1, majorCategory: 2, subCategory: 3, memo: 4 };
+    let recordTypeIndex = -1;
     if (hasHeader) {
       indexes = {
         date: first.indexOf("date"),
@@ -1178,9 +1183,15 @@
         subCategory: first.indexOf("subcategory"),
         memo: first.indexOf("memo")
       };
+      recordTypeIndex = first.indexOf("recordtype");
       records = records.slice(1);
     }
-    csvPreviewRows = records.filter(row => row.some(value => String(value).trim())).map(row => ({
+    csvPreviewRows = records.filter(row => {
+      if (!row.some(value => String(value).trim())) return false;
+      if (recordTypeIndex < 0) return true;
+      const recordType = String(row[recordTypeIndex] ?? "").trim().toLowerCase();
+      return !recordType || recordType === "expense";
+    }).map(row => ({
       tempId: uid("csv"),
       include: true,
       date: String(row[indexes.date] ?? "").trim(),
@@ -1459,20 +1470,60 @@
     showToast(`${selected.length}件を取り込みました`);
   }
 
-  function exportCsv() {
-    const header = ["date", "amount", "majorCategory", "subCategory", "memo", "createdAt", "source"];
-    const rows = sortedExpenses(state.expenses).map(expense => [
-      expense.date,
-      expense.amount,
-      expense.majorCategory,
-      expense.subCategory,
-      expense.memo,
-      expense.createdAt,
-      expense.source
+  function openExportCsvModal() {
+    const selectedMonth = /^\d{4}-\d{2}$/.test(els.filterMonth.value) ? els.filterMonth.value : monthKey(todayISO());
+    $("#exportCsvMonth").value = selectedMonth;
+    $("#exportCsvCurrent").checked = true;
+    $("#exportCsvAll").checked = false;
+    syncExportCsvControls();
+    openModal("exportCsvModal");
+  }
+
+  function syncExportCsvControls() {
+    const isAll = $("#exportCsvAll").checked;
+    $("#exportCsvMonth").disabled = isAll;
+    $("#exportCsvMonth").required = !isAll;
+    $("#exportCsvMonthField").classList.toggle("is-disabled", isAll);
+    const selectedMonth = $("#exportCsvMonth").value;
+    const count = isAll
+      ? state.expenses.length
+      : state.expenses.filter(expense => monthKey(expense.date) === selectedMonth).length;
+    const rangeText = isAll ? "全期間" : formatExportMonth(selectedMonth);
+    $("#exportCsvSummary").textContent = `${rangeText}の明細 ${count}件と、現在設定中の月予算を出力します。`;
+  }
+
+  function exportCsv(event) {
+    event?.preventDefault();
+    const isAll = $("#exportCsvAll").checked;
+    const selectedMonth = $("#exportCsvMonth").value;
+    if (!isAll && !/^\d{4}-\d{2}$/.test(selectedMonth)) {
+      alert("対象月を選択してください。");
+      return;
+    }
+    const period = isAll ? "all" : selectedMonth;
+    const expenses = sortedExpenses(state.expenses.filter(expense => isAll || monthKey(expense.date) === selectedMonth));
+    const header = ["recordType", "period", "date", "amount", "majorCategory", "subCategory", "memo", "createdAt", "source", "budgetGroup", "budgetName", "monthlyBudget"];
+    const budgetRows = [
+      ["budget", period, "", "", "", "", "", "", "", "全体予算", "生活費", state.budgets.living],
+      ["budget", period, "", "", "食費", "家飲み", "", "", "", "重点予算", "家飲み", state.budgets.homeDrinking],
+      ["budget", period, "", "", "日用品", "タバコ", "", "", "", "重点予算", "タバコ", state.budgets.tobacco],
+      ...state.categories.map(category => [
+        "budget", period, "", "", category.name, "", "", "", "", category.group, `${category.name} 月予算`, category.budget
+      ])
+    ];
+    const expenseRows = expenses.map(expense => [
+      "expense", period, expense.date, expense.amount, expense.majorCategory, expense.subCategory,
+      expense.memo, expense.createdAt, expense.source, "", "", ""
     ]);
-    const content = [header, ...rows].map(row => row.map(csvEscape).join(",")).join("\r\n");
-    downloadFile(`kakeibo-${todayISO()}.csv`, `\uFEFF${content}`, "text/csv;charset=utf-8");
-    showToast("CSVを出力しました");
+    const content = [header, ...budgetRows, ...expenseRows].map(row => row.map(csvEscape).join(",")).join("\r\n");
+    downloadFile(`kakeibo-${period}-${todayISO()}.csv`, `\uFEFF${content}`, "text/csv;charset=utf-8");
+    closeModal("exportCsvModal");
+    showToast(`${isAll ? "全期間" : formatExportMonth(selectedMonth)}のCSVを出力しました`);
+  }
+
+  function formatExportMonth(value) {
+    const match = /^(\d{4})-(\d{2})$/.exec(value);
+    return match ? `${match[1]}年${Number(match[2])}月` : "対象月";
   }
 
   function exportJson() {
