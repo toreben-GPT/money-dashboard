@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 
 const NativeDate = Date;
-const FIXED_NOW = NativeDate.parse("2026-06-27T12:00:00+09:00");
+let FIXED_NOW = NativeDate.parse("2026-06-27T12:00:00+09:00");
 globalThis.Date = class FixedDate extends NativeDate {
   constructor(...args) {
     super(...(args.length ? args : [FIXED_NOW]));
@@ -115,7 +115,7 @@ const styleText = await readFile(new URL("../style.css", import.meta.url), "utf8
 const indexText = await readFile(new URL("../index.html", import.meta.url), "utf8");
 
 assert.equal(readState().categories.length, 12, "初期カテゴリ数");
-assert.equal(readState().version, 3.1, "保存データをv3.1として正規化");
+assert.equal(readState().version, 3.2, "保存データをv3.2として正規化");
 assert.deepEqual(readState().categories.slice(0, 3).map(item => item.name), ["食費", "交際費", "日用品"], "よく使うカテゴリを先頭に表示");
 assert.ok(readState().categories.slice(-4).every(item => item.group === "固定費"), "固定費カテゴリを下に表示");
 assert.equal(readState().budgets.living, 150000, "生活費初期予算");
@@ -274,8 +274,8 @@ assert.match(getElement("csvPreviewList").innerHTML, /テスト2更新/, "編集
 assert.match(styleText, /\.csv-preview-card\s*\{[^}]*overflow:\s*visible/s, "コンパクトカードの高さを制限しない");
 assert.match(styleText, /\.csv-inline-editor \.csv-date-input\s*\{[^}]*max-width:\s*100%/s, "iPhoneの日付入力をパネル幅以内に制限");
 assert.match(styleText, /\.csv-inline-editor\s*\{[^}]*display:\s*grid[^}]*width:\s*100%[^}]*gap:/s, "独立編集パネルを縦並び・全幅表示");
-assert.match(indexText, /style\.css\?v=3\.1/, "Safariに最新CSSを読み込ませる");
-assert.match(indexText, /app\.js\?v=3\.1/, "Safariに最新JavaScriptを読み込ませる");
+assert.match(indexText, /style\.css\?v=3\.2/, "Safariに最新CSSを読み込ませる");
+assert.match(indexText, /app\.js\?v=3\.2/, "Safariに最新JavaScriptを読み込ませる");
 assert.match(styleText, /\.quick-list\s*\{[^}]*display:\s*grid/s, "クイック入力を横スクロールではなく折り返し表示");
 assert.match(styleText, /\.transaction-category,[\s\S]*?white-space:\s*normal/s, "長い明細文をカード内で折り返す");
 assert.match(styleText, /\.mini-progress\s*\{[^}]*border-top:/s, "親カード内でミニ進捗を区切って表示");
@@ -284,7 +284,7 @@ assert.equal(readState().expenses.length, 4, "CSV取り込み");
 assert.equal(readState().expenses.filter(item => item.source === "receipt").length, 3, "選択したデータ元を保存");
 assert.equal(getElement("filterMonth").value, "2026-06", "取り込み後は一番新しい日付の月を表示");
 assert.equal(getElement("drinkMonthRemaining").textContent, "¥5,000", "家飲み月残り");
-assert.equal(getElement("drinkWeekRemaining").textContent, "−¥367", "家飲み週目安と残り");
+assert.equal(getElement("drinkWeekRemaining").textContent, "¥0", "家飲み週目安超過時は使える額0円");
 
 getElement("csvPaste").value = [
   "recordType,period,date,amount,majorCategory,subCategory,memo,createdAt,source,budgetGroup,budgetName,monthlyBudget",
@@ -619,4 +619,34 @@ getElement("expenseSub").value = "食費";
 await getElement("expenseForm").dispatch("submit");
 assert.equal(getElement("todayAvailable").textContent, "¥32,500", "対象生活費の支出だけ日額から差し引く");
 
-console.log("SMOKE TEST OK: v3.1 CSV期間選択・予算同梱・長文折り返し・既存機能");
+// Restore isolated fixtures through the real import path; never use browser user data.
+const drinkFixture = readState();
+drinkFixture.version = 3.1;
+drinkFixture.budgets.homeDrinking = 10000;
+async function checkDrinking({ today = "2026-10-19", entries = [], available, remaining, limited = false }) {
+  FIXED_NOW = NativeDate.parse(`${today}T12:00:00+09:00`);
+  const data = structuredClone(drinkFixture);
+  data.expenses = entries.map(([date, amount], index) => ({
+    id: `drink-${index}`, date, amount, majorCategory: "食費", subCategory: "家飲み", memo: "回帰テスト", source: "manual"
+  }));
+  await getElement("restoreJsonFile").dispatch("change", {
+    target: { files: [{ text: async () => JSON.stringify({ data }) }], value: "" }
+  });
+  assert.equal(getElement("drinkWeekRemaining").textContent, available, `${today}: 今週使える額`);
+  assert.equal(getElement("drinkMonthRemaining").textContent, remaining, `${today}: 月残り`);
+  assert.equal(getElement("drinkMonthRemaining").classList.contains("is-negative"), remaining.startsWith("−"), "月超過の赤字表示");
+  assert.equal(getElement("drinkWeekRemaining").classList.contains("is-negative"), false, "使える額は最低0円");
+  assert.equal(getElement("drinkWeekDetail").textContent.includes("月予算の残りを上限にしています"), limited, "月上限の補足表示と解除");
+  assert.equal(readState().expenses.length, entries.length, "既存明細を保持");
+}
+assert.match(indexText, /今週使える額/, "家飲みの表示名を更新");
+await checkDrinking({ entries: [["2026-10-18", 8157]], available: "¥1,843", remaining: "¥1,843", limited: true });
+await checkDrinking({ entries: [["2026-10-18", 10000]], available: "¥0", remaining: "¥0", limited: true });
+await checkDrinking({ entries: [["2026-10-18", 10500]], available: "¥0", remaining: "−¥500", limited: true });
+await checkDrinking({ entries: [["2026-10-18", 6399], ["2026-10-19", 1758]], available: "¥500", remaining: "¥1,843" });
+await checkDrinking({ entries: [["2026-10-19", 3000]], available: "¥0", remaining: "¥7,000" });
+await checkDrinking({ today: "2026-10-26", entries: [["2026-10-18", 10000]], available: "¥0", remaining: "¥0", limited: true });
+await checkDrinking({ today: "2026-11-01", entries: [["2026-10-25", 10000], ["2026-11-01", 9500]], available: "¥0", remaining: "¥500" });
+await checkDrinking({ today: "2026-11-02", entries: [["2026-10-25", 10000], ["2026-11-01", 9500]], available: "¥500", remaining: "¥500", limited: true });
+await checkDrinking({ today: "2026-11-02", entries: [["2026-10-25", 10000]], available: "¥2,333", remaining: "¥10,000" });
+console.log("SMOKE TEST OK: v3.2 家飲み月上限・ CSV期間選択・予算同梱・長文折り返し・既存機能");

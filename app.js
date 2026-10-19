@@ -2,7 +2,7 @@
   "use strict";
 
   const STORAGE_KEY = "mainichiKakeibo_v1";
-  const APP_VERSION = 3.1;
+  const APP_VERSION = 3.2;
   const CATEGORY_GROUPS = ["生活費", "固定費", "特別な支出"];
   const DONUT_COLORS = ["#207a52", "#e5a72f", "#4b79b9", "#df7650", "#7d65b3", "#43a5a1", "#b76386", "#7e9251"];
 
@@ -142,7 +142,7 @@
           .map(item => {
             const name = String(item.name).trim();
             const requestedGroup = String(item.group || "");
-            const group = storedVersion < APP_VERSION && name === "ふるさと納税"
+            const group = storedVersion < 3.1 && name === "ふるさと納税"
               ? "特別な支出"
               : (CATEGORY_GROUPS.includes(requestedGroup) ? requestedGroup : "生活費");
             return {
@@ -399,9 +399,11 @@
     const drinkWeekBudget = Math.round(state.budgets.homeDrinking / daysInMonth * 7);
     const drinkWeekRemaining = drinkWeekBudget - drinkWeekSpent;
     const drinkMonthRemaining = state.budgets.homeDrinking - drinkMonthSpent;
+    const drinkWeekAvailable = Math.max(0, Math.min(drinkWeekRemaining, drinkMonthRemaining));
+    const drinkMonthLimited = drinkMonthRemaining < drinkWeekRemaining;
     els.drinkUsage.textContent = `${yen(drinkMonthSpent)} / ${yen(state.budgets.homeDrinking)}`;
-    setSignedAmount(els.drinkWeekRemaining, drinkWeekRemaining);
-    els.drinkWeekDetail.textContent = `使用 ${yen(drinkWeekSpent)}・週目安 ${yen(drinkWeekBudget)}`;
+    setSignedAmount(els.drinkWeekRemaining, drinkWeekAvailable);
+    els.drinkWeekDetail.textContent = `使用 ${yen(drinkWeekSpent)}・週目安 ${yen(drinkWeekBudget)}${drinkMonthLimited ? "・月予算の残りを上限にしています" : ""}`;
     setSignedAmount(els.drinkMonthRemaining, drinkMonthRemaining);
     els.drinkMonthDetail.textContent = `使用 ${yen(drinkMonthSpent)}・月予算 ${yen(state.budgets.homeDrinking)}`;
 
