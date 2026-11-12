@@ -7,7 +7,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <title>まいにち家計簿</title>
-  <link rel="stylesheet" href="style.css?v=3.2">
+  <link rel="stylesheet" href="style.css?v=4">
 </head>
 <body>
   <div class="app-shell">
@@ -22,8 +22,13 @@
     <main>
       <section class="screen is-active" id="homeScreen" data-screen="home" aria-labelledby="homeTitle">
         <h2 class="sr-only" id="homeTitle">ホーム</h2>
+        <div class="home-month-switch" role="group" aria-label="ダッシュボードの表示月">
+          <button id="homePreviousMonth" type="button" aria-pressed="false">先月</button>
+          <button id="homeCurrentMonth" type="button" aria-pressed="true">今月</button>
+        </div>
+        <p class="support-text is-hidden" id="homeBudgetNote">過去月の予算比較には、現在設定している予算・カテゴリを使用しています。</p>
         <article class="hero-card">
-          <p class="card-label">今月累計支出</p>
+          <p class="card-label" id="monthTotalLabel">今月累計支出</p>
           <p class="hero-amount" id="monthTotal">¥0</p>
           <div class="hero-divider"></div>
           <div class="row-between compact">
@@ -36,20 +41,21 @@
           <p class="support-text right" id="livingRemainingText">残り ¥150,000</p>
         </article>
 
-        <article class="today-card">
+        <article class="today-card" id="todayCard">
           <p class="card-label">今日使える金額</p>
           <p class="today-amount" id="todayAvailable">¥0</p>
           <p class="support-text" id="todayBasis">週・月の残りから控えめな方を表示</p>
+          <p class="metric-note">日常費＝生活費から水道・光熱費を除いたもの</p>
         </article>
 
-        <div class="metric-grid">
-          <article class="metric-card">
-            <p class="metric-label">今週残り</p>
+        <div class="metric-grid" id="livingMetrics">
+          <article class="metric-card" id="livingWeekCard">
+            <p class="metric-label">生活費：今週使える額</p>
             <p class="metric-value" id="weekRemaining">¥0</p>
             <p class="metric-note" id="weekDetail"></p>
           </article>
           <article class="metric-card">
-            <p class="metric-label">今月残り</p>
+            <p class="metric-label" id="livingMonthLabel">生活費：今月残り</p>
             <p class="metric-value" id="monthRemaining">¥0</p>
             <p class="metric-note" id="monthDetail"></p>
           </article>
@@ -63,14 +69,14 @@
             </div>
             <p class="usage-summary" id="drinkUsage">¥0 / ¥7,000</p>
           </div>
-          <div class="metric-grid nested">
-            <div>
+          <div class="metric-grid nested" id="drinkMetrics">
+            <div id="drinkWeekCard">
               <p class="metric-label">今週使える額</p>
               <p class="metric-value small" id="drinkWeekRemaining">¥0</p>
               <p class="metric-note" id="drinkWeekDetail"></p>
             </div>
             <div>
-              <p class="metric-label">今月残り</p>
+              <p class="metric-label" id="drinkMonthLabel">今月残り</p>
               <p class="metric-value small" id="drinkMonthRemaining">¥0</p>
               <p class="metric-note" id="drinkMonthDetail"></p>
             </div>
@@ -80,7 +86,7 @@
         <section class="home-section" aria-labelledby="categoryProgressTitle">
           <div class="section-heading outside">
             <div>
-              <p class="mini-kicker">今月の状況</p>
+              <p class="mini-kicker" id="categoryPeriodLabel">今月の状況</p>
               <h2 id="categoryProgressTitle">カテゴリ別 支出・予算進捗</h2>
             </div>
           </div>
@@ -109,7 +115,7 @@
               <p class="mini-kicker">直近5件</p>
               <h2 id="recentTitle">最近の支出</h2>
             </div>
-            <button class="text-button" type="button" data-go-screen="transactions">すべて見る</button>
+            <button class="text-button" type="button" id="homeSeeAll">すべて見る</button>
           </div>
           <div class="transaction-list" id="recentList"></div>
         </section>
@@ -273,7 +279,7 @@
           <button class="danger-button" id="deleteAllButton" type="button">すべて削除</button>
         </article>
 
-        <p class="version-label">まいにち家計簿 v3.2</p>
+        <p class="version-label">まいにち家計簿 v4</p>
       </section>
     </main>
 
@@ -459,6 +465,6 @@
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-  <script src="app.js?v=3.2"></script>
+  <script src="app.js?v=4"></script>
 </body>
 </html>

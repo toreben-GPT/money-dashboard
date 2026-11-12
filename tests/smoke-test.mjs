@@ -115,7 +115,7 @@ const styleText = await readFile(new URL("../style.css", import.meta.url), "utf8
 const indexText = await readFile(new URL("../index.html", import.meta.url), "utf8");
 
 assert.equal(readState().categories.length, 12, "初期カテゴリ数");
-assert.equal(readState().version, 3.2, "保存データをv3.2として正規化");
+assert.equal(readState().version, 4, "保存データをv4として正規化");
 assert.deepEqual(readState().categories.slice(0, 3).map(item => item.name), ["食費", "交際費", "日用品"], "よく使うカテゴリを先頭に表示");
 assert.ok(readState().categories.slice(-4).every(item => item.group === "固定費"), "固定費カテゴリを下に表示");
 assert.equal(readState().budgets.living, 150000, "生活費初期予算");
@@ -152,7 +152,7 @@ assert.equal(readState().expenses.length, 1, "手入力登録");
 assert.equal(readState().expenses[0].source, "manual", "手入力source");
 assert.equal(getElement("monthTotal").textContent, "¥1,100", "登録後ホーム更新");
 assert.equal(getElement("todayAvailable").textContent, "¥32,475", "対象日常費の支出を差し引いて日額を算出");
-assert.match(getElement("categoryProgressList").innerHTML, /家飲み以外の食費[\s\S]*今月残り[\s\S]*¥26,900[\s\S]*今週残り[\s\S]*¥5,433/, "家飲み以外の食費の月・週残りを計算");
+assert.match(getElement("categoryProgressList").innerHTML, /家飲み以外の食費[\s\S]*今月残り[\s\S]*¥26,900[\s\S]*今週使える額[\s\S]*¥5,433/, "家飲み以外の食費の月・週残りを計算");
 
 prompts.push("昼ごはん");
 await getElement("saveQuickButton").dispatch("click");
@@ -274,8 +274,8 @@ assert.match(getElement("csvPreviewList").innerHTML, /テスト2更新/, "編集
 assert.match(styleText, /\.csv-preview-card\s*\{[^}]*overflow:\s*visible/s, "コンパクトカードの高さを制限しない");
 assert.match(styleText, /\.csv-inline-editor \.csv-date-input\s*\{[^}]*max-width:\s*100%/s, "iPhoneの日付入力をパネル幅以内に制限");
 assert.match(styleText, /\.csv-inline-editor\s*\{[^}]*display:\s*grid[^}]*width:\s*100%[^}]*gap:/s, "独立編集パネルを縦並び・全幅表示");
-assert.match(indexText, /style\.css\?v=3\.2/, "Safariに最新CSSを読み込ませる");
-assert.match(indexText, /app\.js\?v=3\.2/, "Safariに最新JavaScriptを読み込ませる");
+assert.match(indexText, /style\.css\?v=4/, "Safariに最新CSSを読み込ませる");
+assert.match(indexText, /app\.js\?v=4/, "Safariに最新JavaScriptを読み込ませる");
 assert.match(styleText, /\.quick-list\s*\{[^}]*display:\s*grid/s, "クイック入力を横スクロールではなく折り返し表示");
 assert.match(styleText, /\.transaction-category,[\s\S]*?white-space:\s*normal/s, "長い明細文をカード内で折り返す");
 assert.match(styleText, /\.mini-progress\s*\{[^}]*border-top:/s, "親カード内でミニ進捗を区切って表示");
@@ -649,4 +649,114 @@ await checkDrinking({ today: "2026-10-26", entries: [["2026-10-18", 10000]], ava
 await checkDrinking({ today: "2026-11-01", entries: [["2026-10-25", 10000], ["2026-11-01", 9500]], available: "¥0", remaining: "¥500" });
 await checkDrinking({ today: "2026-11-02", entries: [["2026-10-25", 10000], ["2026-11-01", 9500]], available: "¥500", remaining: "¥500", limited: true });
 await checkDrinking({ today: "2026-11-02", entries: [["2026-10-25", 10000]], available: "¥2,333", remaining: "¥10,000" });
-console.log("SMOKE TEST OK: v3.2 家飲み月上限・ CSV期間選択・予算同梱・長文折り返し・既存機能");
+console.log("SMOKE TEST OK: v4 家飲み月上限・ CSV期間選択・予算同梱・長文折り返し・既存機能");
+
+// v4: screenshot regressions, monthly caps, month boundaries and past-month review.
+async function restoreFixture(data) {
+  await getElement("restoreJsonFile").dispatch("change", {
+    target: { files: [{ text: async () => JSON.stringify({ data }) }], value: "" }
+  });
+}
+function entry(date, amount, majorCategory = "食費", subCategory = "食費") {
+  return { id: `v4-${date}-${amount}-${subCategory}`, date, amount, majorCategory, subCategory, memo: `${date}テスト`, source: "manual" };
+}
+FIXED_NOW = NativeDate.parse("2026-10-27T12:00:00+09:00");
+const v4 = structuredClone(drinkFixture);
+v4.budgets.living = 121000;
+v4.budgets.homeDrinking = 10000;
+v4.expenses = [
+  entry("2026-10-18", 20681), entry("2026-10-27", 1684),
+  entry("2026-10-18", 9270, "食費", "家飲み"),
+  entry("2026-10-18", 72465, "交際費", "交際費"),
+  entry("2026-11-01", 50000)
+];
+await restoreFixture(v4);
+assert.equal(getElement("weekRemaining").textContent, "¥16,900", "写真の生活費: 週は月残額16900円が上限");
+assert.equal(getElement("monthRemaining").textContent, "¥16,900");
+assert.match(getElement("categoryProgressList").innerHTML, /家飲み以外の食費[\s\S]*今月残り[^]*?¥2,635[^]*?今週使える額 <b>¥2,635<\/b>/, "写真の食費: 週は月残額2635円が上限");
+assert.match(getElement("weekDetail").textContent, /10\/26〜10\/31/, "月末週は11月分を含めない");
+assert.equal(getElement("monthTotal").textContent, "¥104,100");
+assert.doesNotMatch(getElement("recentList").innerHTML, /2026-11-01/, "最近の支出も選択月内だけ");
+assert.match(getElement("drinkWeekDetail").textContent, /週目安 ¥1,935/, "月末週は6日分");
+
+for (const amount of [121000, 121500]) {
+  const data = structuredClone(v4);
+  data.expenses = [entry("2026-10-18", amount, "交際費", "交際費")];
+  await restoreFixture(data);
+  assert.equal(getElement("weekRemaining").textContent, "¥0", "月使い切り・超過後は週額0円");
+  assert.equal(getElement("todayAvailable").textContent, "¥0", "月使い切り・超過後は日額0円");
+  assert.equal(getElement("monthRemaining").textContent, amount === 121000 ? "¥0" : "−¥500");
+}
+const utilityCap = structuredClone(v4);
+utilityCap.expenses = [entry("2026-10-18", 120500, "水道・光熱費", "電気代")];
+await restoreFixture(utilityCap);
+assert.equal(getElement("todayAvailable").textContent, "¥500", "日常費残額が大きくても生活費月残額が上限");
+assert.match(getElement("todayBasis").textContent, /生活費の月残額が上限/);
+
+const tobacco = structuredClone(v4);
+tobacco.budgets.tobacco = 7000;
+tobacco.expenses = [entry("2026-10-18", 6900, "日用品", "タバコ")];
+await restoreFixture(tobacco);
+assert.match(getElement("categoryProgressList").innerHTML, /タバコ[^]*?今週使える額 <b>¥100<\/b>/, "タバコも月残額が上限");
+tobacco.expenses[0].amount = 7500;
+await restoreFixture(tobacco);
+assert.match(getElement("categoryProgressList").innerHTML, /タバコ[^]*?−¥500[^]*?今週使える額 <b>¥0<\/b>/);
+const foodOver = structuredClone(v4);
+foodOver.expenses = [entry("2026-10-18", 25100)];
+await restoreFixture(foodOver);
+assert.match(getElement("categoryProgressList").innerHTML, /家飲み以外の食費[^]*?−¥100[^]*?今週使える額 <b>¥0<\/b>/);
+
+FIXED_NOW = NativeDate.parse("2026-11-10T12:00:00+09:00");
+await restoreFixture(v4);
+const beforeSwitch = structuredClone(readState());
+await getElement("homePreviousMonth").dispatch("click");
+assert.equal(getElement("headerMonth").textContent, "2026年10月");
+assert.equal(getElement("monthTotal").textContent, "¥104,100");
+assert.equal(getElement("donutTotal").textContent, "¥104,100");
+assert.equal(getElement("livingMonthLabel").textContent, "生活費：10月の予算残額");
+assert.equal(getElement("drinkMonthLabel").textContent, "10月の予算残額");
+assert.equal(getElement("homePreviousMonth")["aria-pressed"], "true");
+for (const id of ["todayCard", "livingWeekCard", "drinkWeekCard"]) assert.ok(getElement(id).classList.contains("is-hidden"), `${id}: 先月は非表示`);
+assert.ok(!getElement("homeBudgetNote").classList.contains("is-hidden"));
+assert.doesNotMatch(getElement("categoryProgressList").innerHTML, /今週|今月/);
+assert.match(getElement("recentList").innerHTML, /2026-10-27/);
+assert.doesNotMatch(getElement("recentList").innerHTML, /2026-11-01/);
+assert.deepEqual(readState(), beforeSwitch, "月切替だけでは保存データを書き換えない");
+await getElement("homeSeeAll").dispatch("click");
+assert.equal(getElement("filterMonth").value, "2026-10");
+assert.equal(getElement("transactionFilteredTotal").textContent, "¥104,100");
+
+// A card entry registered in November with an October usage date appears in October.
+getElement("expenseDate").value = "2026-10-31";
+getElement("expenseAmount").value = "1000";
+getElement("expenseMajor").value = "食費";
+await getElement("expenseMajor").dispatch("change");
+getElement("expenseSub").value = "食費";
+getElement("expenseMemo").value = "11月登録の10月利用分";
+await getElement("expenseForm").dispatch("submit");
+assert.equal(getElement("monthTotal").textContent, "¥105,100");
+assert.match(getElement("recentList").innerHTML, /11月登録の10月利用分/);
+assert.equal(getElement("donutTotal").textContent, "¥105,100");
+await getElement("homeCurrentMonth").dispatch("click");
+assert.equal(getElement("headerMonth").textContent, "2026年11月");
+assert.equal(getElement("monthTotal").textContent, "¥50,000");
+for (const id of ["todayCard", "livingWeekCard", "drinkWeekCard"]) assert.ok(!getElement(id).classList.contains("is-hidden"));
+assert.ok(getElement("homeBudgetNote").classList.contains("is-hidden"));
+assert.doesNotMatch(getElement("recentList").innerHTML, /11月登録の10月利用分/);
+
+// January -> December and leap-day boundaries.
+FIXED_NOW = NativeDate.parse("2027-01-10T12:00:00+09:00");
+await getElement("homePreviousMonth").dispatch("click");
+assert.equal(getElement("headerMonth").textContent, "2026年12月");
+assert.equal(getElement("monthTotal").textContent, "¥0");
+assert.match(getElement("recentList").innerHTML, /この月の支出はありません/);
+FIXED_NOW = NativeDate.parse("2028-03-01T12:00:00+09:00");
+const leap = structuredClone(v4);
+leap.expenses = [entry("2028-02-29", 1000), entry("2028-03-01", 2000)];
+await restoreFixture(leap);
+assert.equal(getElement("headerMonth").textContent, "2028年2月");
+assert.equal(getElement("monthTotal").textContent, "¥1,000");
+await getElement("homeCurrentMonth").dispatch("click");
+assert.match(getElement("weekDetail").textContent, /3\/1〜3\/5/, "月初週は対象月の5日分だけ");
+assert.equal(getElement("monthTotal").textContent, "¥2,000");
+console.log("V4 REGRESSION OK: 写真2件・月上限・月またぎ按分・先月全体・後日入力・年越し・閏年・保存データ保持");

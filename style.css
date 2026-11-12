@@ -1908,3 +1908,38 @@ body.modal-open {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Dashboard month selection and completed-month review. */
+.home-month-switch {
+  display: flex;
+  gap: 6px;
+  padding: 5px;
+  margin-bottom: 16px;
+  border-radius: 16px;
+  background: var(--green-soft);
+}
+.home-month-switch button {
+  flex: 1;
+  min-width: 0;
+  min-height: 44px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--green-dark);
+  font-weight: 700;
+}
+.home-month-switch button[aria-pressed="true"] {
+  background: var(--green);
+  color: white;
+}
+.metric-grid.monthly-review {
+  grid-template-columns: minmax(0, 1fr);
+}
+#homeBudgetNote {
+  margin: 0 0 16px;
+}
+
+.metric-grid.nested.monthly-review > div + div {
+  padding-left: 0;
+  border-left: 0;
+}

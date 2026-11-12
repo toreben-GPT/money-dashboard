@@ -2,7 +2,7 @@
   "use strict";
 
   const STORAGE_KEY = "mainichiKakeibo_v1";
-  const APP_VERSION = 3.2;
+  const APP_VERSION = 4;
   const CATEGORY_GROUPS = ["生活費", "固定費", "特別な支出"];
   const DONUT_COLORS = ["#207a52", "#e5a72f", "#4b79b9", "#df7650", "#7d65b3", "#43a5a1", "#b76386", "#7e9251"];
 
@@ -23,6 +23,7 @@
   const CATEGORY_INPUT_ORDER = DEFAULT_CATEGORIES.map(category => category.name);
 
   let state = loadState();
+  let homeMonthOffset = 0;
   let lastSavedId = null;
   let detailExpenseId = null;
   let csvPreviewRows = [];
@@ -216,6 +217,22 @@
   }
 
   function bindEvents() {
+    $("#homePreviousMonth").addEventListener("click", () => {
+      homeMonthOffset = -1;
+      renderHome();
+    });
+    $("#homeCurrentMonth").addEventListener("click", () => {
+      homeMonthOffset = 0;
+      renderHome();
+    });
+    $("#homeSeeAll").addEventListener("click", () => {
+      els.filterMonth.value = homePeriod().month;
+      els.filterMajor.value = "";
+      els.filterSub.value = "";
+      populateFilterSubs();
+      updatePickerDisplays();
+      navigate("transactions");
+    });
     $$("[data-tab]").forEach(button => button.addEventListener("click", () => navigate(button.dataset.tab)));
     $$("[data-go-screen]").forEach(button => button.addEventListener("click", () => navigate(button.dataset.goScreen)));
     els.headerAddButton.addEventListener("click", () => {
@@ -354,65 +371,94 @@
     if (scroll) window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
-  function renderHome() {
+  // Use local calendar dates so DST and UTC cannot shift month boundaries.
+  function homePeriod() {
     const today = parseLocalDate(todayISO());
-    const currentMonth = monthKey(todayISO());
-    const monthStart = `${currentMonth}-01`;
-    const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
-    const monthEnd = `${currentMonth}-${String(lastDay).padStart(2, "0")}`;
-    const weekStartDate = startOfWeek(today);
-    const weekEndDate = addDays(weekStartDate, 6);
-    const weekStart = dateToISO(weekStartDate);
-    const weekEnd = dateToISO(weekEndDate);
-    const monthExpenses = expensesBetween(monthStart, monthEnd);
+    const first = new Date(today.getFullYear(), today.getMonth() + homeMonthOffset, 1);
+    const last = new Date(first.getFullYear(), first.getMonth() + 1, 0);
+    const month = monthKey(dateToISO(first));
+    const start = dateToISO(first);
+    const end = dateToISO(last);
+    const anchor = homeMonthOffset === 0 ? today : last;
+    const weekStart = [dateToISO(startOfWeek(anchor)), start].sort()[1];
+    const weekEnd = [dateToISO(addDays(startOfWeek(anchor), 6)), end].sort()[0];
+    const weekDays = parseLocalDate(weekEnd).getDate() - parseLocalDate(weekStart).getDate() + 1;
+    return { today, first, month, start, end, weekStart, weekEnd, weekDays,
+      daysInMonth: last.getDate(), past: homeMonthOffset !== 0,
+      label: homeMonthOffset === 0 ? "今月" : `${first.getMonth() + 1}月` };
+  }
+
+  function weeklyAllowance(weekRemaining, monthRemaining) {
+    return Math.max(0, Math.min(weekRemaining, monthRemaining));
+  }
+
+  function monthLimitNote(weekRemaining, monthRemaining) {
+    return monthRemaining < weekRemaining ? "・月予算の残りを上限にしています" : "";
+  }
+
+  function renderHome() {
+    const period = homePeriod();
+    const { today, first, weekStart, weekEnd, weekDays, daysInMonth, past, label } = period;
+    const monthExpenses = expensesBetween(period.start, period.end);
     const weekExpenses = expensesBetween(weekStart, weekEnd);
     const livingCategories = new Set(state.categories.filter(category => category.group === "生活費").map(category => category.name));
     const monthLiving = sum(monthExpenses.filter(expense => livingCategories.has(expense.majorCategory)).map(expense => expense.amount));
     const weekLiving = sum(weekExpenses.filter(expense => livingCategories.has(expense.majorCategory)).map(expense => expense.amount));
     const monthTotal = sum(monthExpenses.map(expense => expense.amount));
-    const daysInMonth = lastDay;
-    const weeklyLivingBudget = Math.round(state.budgets.living / daysInMonth * 7);
+    const weeklyLivingBudget = Math.round(state.budgets.living / daysInMonth * weekDays);
     const weekRemaining = weeklyLivingBudget - weekLiving;
     const monthRemaining = state.budgets.living - monthLiving;
-    const daysRemainingMonth = lastDay - today.getDate() + 1;
+    const daysRemainingMonth = past ? 0 : daysInMonth - today.getDate() + 1;
     const dailyCategories = state.categories.filter(isDailySpendCategory);
     const dailyCategoryNames = new Set(dailyCategories.map(category => category.name));
     const dailyBudget = sum(dailyCategories.map(category => category.budget));
     const monthDailySpent = sum(monthExpenses.filter(expense => dailyCategoryNames.has(expense.majorCategory)).map(expense => expense.amount));
     const dailyRemaining = dailyBudget - monthDailySpent;
-    const todayAvailable = Math.max(0, Math.floor(dailyRemaining / daysRemainingMonth));
+    const dailyAllowance = past ? 0 : Math.max(0, Math.floor(dailyRemaining / daysRemainingMonth));
+    const todayAvailable = Math.max(0, Math.min(dailyAllowance, monthRemaining));
 
-    els.headerMonth.textContent = `${today.getFullYear()}年${today.getMonth() + 1}月`;
+    els.headerMonth.textContent = `${first.getFullYear()}年${first.getMonth() + 1}月`;
+    $("#homePreviousMonth").setAttribute("aria-pressed", String(past));
+    $("#homeCurrentMonth").setAttribute("aria-pressed", String(!past));
+    ["todayCard", "livingWeekCard", "drinkWeekCard"].forEach(id => $("#" + id).classList.toggle("is-hidden", past));
+    ["livingMetrics", "drinkMetrics"].forEach(id => $("#" + id).classList.toggle("monthly-review", past));
+    $("#homeBudgetNote").classList.toggle("is-hidden", !past);
+    $("#monthTotalLabel").textContent = `${label}累計支出`;
+    $("#livingMonthLabel").textContent = past ? `生活費：${label}の予算残額` : "生活費：今月残り";
+    $("#drinkMonthLabel").textContent = past ? `${label}の予算残額` : "今月残り";
+    $("#categoryPeriodLabel").textContent = `${label}の状況`;
+    $("#donutTitle").textContent = `${label}の支出割合`;
+    els.donutEmpty.textContent = `${label}の生活費を登録すると内訳が表示されます。`;
+    $("#recentTitle").textContent = `${label}の最近の支出`;
     els.monthTotal.textContent = yen(monthTotal);
     els.livingTotalText.textContent = `${yen(monthLiving)} / ${yen(state.budgets.living)}`;
     setProgress(els.livingProgress, percent(monthLiving, state.budgets.living));
     els.livingRemainingText.textContent = `残り ${yen(monthRemaining)}`;
     els.todayAvailable.textContent = yen(todayAvailable);
-    els.todayBasis.textContent = `日常費の残り ${yen(dailyRemaining)} ÷ ${daysRemainingMonth}日（今日を含む）`;
-    setSignedAmount(els.weekRemaining, weekRemaining);
-    els.weekDetail.textContent = `${formatShortDate(weekStart)}〜${formatShortDate(weekEnd)}・目安 ${yen(weeklyLivingBudget)}`;
+    els.todayBasis.textContent = `日常費の残り ${yen(dailyRemaining)} ÷ ${daysRemainingMonth}日（今日を含む）${todayAvailable < dailyAllowance ? "・生活費の月残額が上限です" : ""}`;
+    setSignedAmount(els.weekRemaining, weeklyAllowance(weekRemaining, monthRemaining));
+    els.weekDetail.textContent = `${formatShortDate(weekStart)}〜${formatShortDate(weekEnd)}・週目安 ${yen(weeklyLivingBudget)}${monthLimitNote(weekRemaining, monthRemaining)}`;
     setSignedAmount(els.monthRemaining, monthRemaining);
-    els.monthDetail.textContent = `${daysRemainingMonth}日分・予算 ${yen(state.budgets.living)}`;
+    els.monthDetail.textContent = `${past ? "月全体" : `${daysRemainingMonth}日分`}・予算 ${yen(state.budgets.living)}`;
 
     const drinkMonthSpent = sum(monthExpenses.filter(expense => expense.subCategory === "家飲み").map(expense => expense.amount));
     const drinkWeekSpent = sum(weekExpenses.filter(expense => expense.subCategory === "家飲み").map(expense => expense.amount));
-    const drinkWeekBudget = Math.round(state.budgets.homeDrinking / daysInMonth * 7);
+    const drinkWeekBudget = Math.round(state.budgets.homeDrinking / daysInMonth * weekDays);
     const drinkWeekRemaining = drinkWeekBudget - drinkWeekSpent;
     const drinkMonthRemaining = state.budgets.homeDrinking - drinkMonthSpent;
-    const drinkWeekAvailable = Math.max(0, Math.min(drinkWeekRemaining, drinkMonthRemaining));
-    const drinkMonthLimited = drinkMonthRemaining < drinkWeekRemaining;
+    const drinkWeekAvailable = weeklyAllowance(drinkWeekRemaining, drinkMonthRemaining);
     els.drinkUsage.textContent = `${yen(drinkMonthSpent)} / ${yen(state.budgets.homeDrinking)}`;
     setSignedAmount(els.drinkWeekRemaining, drinkWeekAvailable);
-    els.drinkWeekDetail.textContent = `使用 ${yen(drinkWeekSpent)}・週目安 ${yen(drinkWeekBudget)}${drinkMonthLimited ? "・月予算の残りを上限にしています" : ""}`;
+    els.drinkWeekDetail.textContent = `使用 ${yen(drinkWeekSpent)}・週目安 ${yen(drinkWeekBudget)}${monthLimitNote(drinkWeekRemaining, drinkMonthRemaining)}`;
     setSignedAmount(els.drinkMonthRemaining, drinkMonthRemaining);
     els.drinkMonthDetail.textContent = `使用 ${yen(drinkMonthSpent)}・月予算 ${yen(state.budgets.homeDrinking)}`;
 
-    renderCategoryProgress(monthExpenses, weekExpenses, daysInMonth);
+    renderCategoryProgress(monthExpenses, weekExpenses, period);
     renderDonut(monthExpenses, livingCategories);
-    renderRecent();
+    renderRecent(monthExpenses);
   }
 
-  function renderCategoryProgress(monthExpenses, weekExpenses, daysInMonth) {
+  function renderCategoryProgress(monthExpenses, weekExpenses, period) {
     const blocks = [];
     CATEGORY_GROUPS.forEach(group => {
       const categories = state.categories.filter(category => category.group === group);
@@ -433,7 +479,7 @@
             expense.majorCategory === category.name && expense.subCategory !== "家飲み"
           ).map(expense => expense.amount));
           const budget = Math.max(0, category.budget - state.budgets.homeDrinking);
-          miniProgress = miniProgressHtml("家飲み以外の食費", monthSpent, weekSpent, budget, daysInMonth);
+          miniProgress = miniProgressHtml("家飲み以外の食費", monthSpent, weekSpent, budget, period);
         }
         if (category.name === "日用品") {
           const monthSpent = sum(monthExpenses.filter(expense =>
@@ -442,7 +488,7 @@
           const weekSpent = sum(weekExpenses.filter(expense =>
             expense.majorCategory === category.name && expense.subCategory === "タバコ"
           ).map(expense => expense.amount));
-          miniProgress = miniProgressHtml("タバコ", monthSpent, weekSpent, state.budgets.tobacco, daysInMonth);
+          miniProgress = miniProgressHtml("タバコ", monthSpent, weekSpent, state.budgets.tobacco, period);
         }
         blocks.push(progressCardHtml(category.name, spent, category.budget, miniProgress));
       });
@@ -470,12 +516,14 @@
       </article>`;
   }
 
-  function miniProgressHtml(name, monthSpent, weekSpent, budget, daysInMonth) {
+  function miniProgressHtml(name, monthSpent, weekSpent, budget, period) {
+    const { daysInMonth, weekDays, past, label } = period;
     const rate = percent(monthSpent, budget);
     const status = progressStatus(rate, budget, monthSpent);
     const monthRemaining = budget - monthSpent;
-    const weekBudget = Math.round(budget / daysInMonth * 7);
+    const weekBudget = Math.round(budget / daysInMonth * weekDays);
     const weekRemaining = weekBudget - weekSpent;
+    const weekAvailable = weeklyAllowance(weekRemaining, monthRemaining);
     return `
       <div class="mini-progress">
         <div class="mini-progress-head">
@@ -483,11 +531,11 @@
           <span>月予算 ${yen(budget)}</span>
         </div>
         <div class="mini-progress-values">
-          <span>今月残り <b class="${monthRemaining < 0 ? "is-negative" : ""}">${yen(monthRemaining)}</b></span>
-          <span>今週残り <b class="${weekRemaining < 0 ? "is-negative" : ""}">${yen(weekRemaining)}</b></span>
+          <span>${past ? `${label}の予算残額` : "今月残り"} <b class="${monthRemaining < 0 ? "is-negative" : ""}">${yen(monthRemaining)}</b></span>
+          ${past ? "" : `<span>今週使える額 <b>${yen(weekAvailable)}</b></span>`}
         </div>
         <div class="progress-track mini" aria-hidden="true"><div class="progress-fill ${status.className}" style="width:${Math.min(Math.max(rate, monthSpent > 0 && budget === 0 ? 100 : 0), 100)}%"></div></div>
-        <p>今週使用 ${yen(weekSpent)}・週目安 ${yen(weekBudget)}</p>
+        ${past ? "" : `<p>今週使用 ${yen(weekSpent)}・週目安 ${yen(weekBudget)}${monthLimitNote(weekRemaining, monthRemaining)}</p>`}
       </div>`;
   }
 
@@ -498,7 +546,7 @@
           <h3>${escapeHtml(name)}</h3>
           <strong>${yen(spent)}</strong>
         </div>
-        <p class="special-spending-note">今月の支出・予算対象外</p>
+        <p class="special-spending-note">${homePeriod().label}の支出・予算対象外</p>
       </article>`;
   }
 
@@ -535,11 +583,11 @@
       </div>`).join("");
   }
 
-  function renderRecent() {
-    const recent = sortedExpenses(state.expenses).slice(0, 5);
+  function renderRecent(monthExpenses) {
+    const recent = sortedExpenses(monthExpenses).slice(0, 5);
     els.recentList.innerHTML = recent.length
       ? recent.map(transactionRowHtml).join("")
-      : `<p class="empty-state">まだ支出がありません。<br>「入力」から最初の1件を登録しましょう。</p>`;
+      : `<p class="empty-state">この月の支出はありません。<br>「入力」から利用日を指定して登録できます。</p>`;
   }
 
   function renderQuickInputs() {
